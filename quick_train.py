@@ -22,15 +22,6 @@ class QuickFireSmokeTrainer:
                  model_size="yolov8s", 
                  epochs=100,
                  img_size=640):
-        """
-        Quick trainer với best practices cơ bản
-        
-        Args:
-            data_path: Đường dẫn file data.yaml
-            model_size: Kích thước model (yolov8n, yolov8s, yolov8m, yolov8l, yolov8x)
-            epochs: Số epochs training
-            img_size: Kích thước ảnh input
-        """
         self.data_path = data_path
         self.model_size = model_size
         self.epochs = epochs
@@ -44,21 +35,19 @@ class QuickFireSmokeTrainer:
         
         # Setup device
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        print(f"🔥 Using device: {self.device}")
+        print(f" Using device: {self.device}")
         
         # Calculate optimal batch size
         self.batch_size = self._get_optimal_batch_size()
         
         # Load model
         self.model = YOLO(f'{model_size}.pt')
-        print(f"🎯 Loaded model: {model_size}")
-        
+        print(f" Loaded model: {model_size}")
     def _get_optimal_batch_size(self):
         """Tính batch size tối ưu dựa trên GPU memory"""
         if 'cuda' in self.device:
             try:
                 gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
-                
                 # Batch size mapping based on model and GPU memory
                 size_batch_map = {
                     'yolov8n': min(32, max(8, int(gpu_memory * 4))),
@@ -69,7 +58,7 @@ class QuickFireSmokeTrainer:
                 }
                 
                 batch_size = size_batch_map.get(self.model_size, 16)
-                print(f"🧮 Auto batch size: {batch_size} (GPU: {gpu_memory:.1f}GB)")
+                print(f" Auto batch size: {batch_size} (GPU: {gpu_memory:.1f}GB)")
                 return batch_size
             except:
                 return 16
@@ -78,7 +67,7 @@ class QuickFireSmokeTrainer:
     
     def verify_data(self):
         """Kiểm tra dữ liệu"""
-        print("📊 Verifying dataset...")
+        print(" Verifying dataset...")
         
         with open(self.data_path, 'r') as f:
             data_config = yaml.safe_load(f)
@@ -107,7 +96,7 @@ class QuickFireSmokeTrainer:
     
     def train_with_best_practices(self):
         """Training với best practices được tối ưu"""
-        print(f"🚀 Starting training for {self.epochs} epochs...")
+        print(f"Starting training for {self.epochs} epochs...")
         
         # Optimized training parameters
         train_args = {
@@ -161,7 +150,7 @@ class QuickFireSmokeTrainer:
             'copy_paste': 0.3,                 # Copy-paste probability
         }
         
-        print("🔧 Training configuration:")
+        print("    Training configuration:")
         print(f"   Model: {self.model_size}")
         print(f"   Batch size: {self.batch_size}")
         print(f"   Image size: {self.img_size}")
@@ -171,12 +160,12 @@ class QuickFireSmokeTrainer:
         # Start training
         self.results = self.model.train(**train_args)
         
-        print("✅ Training completed!")
+        print(" Training completed!")
         return self.results
     
     def plot_results(self):
         """Vẽ biểu đồ kết quả training"""
-        print("📊 Creating result plots...")
+        print(" Creating result plots...")
         
         run_dir = self.results.save_dir
         results_csv = os.path.join(run_dir, 'results.csv')

@@ -15,8 +15,8 @@ Dự án phát triển hệ thống báo cháy thông minh sử dụng YOLOv8 AI
 
 ```
 HeThongBaoChay/
-├── 📱 app/                     # Flutter mobile application
-├── 📊 data/                    # Training dataset (YOLO format)
+├──app/                     # Flutter mobile application
+├──data/                    # Training dataset (YOLO format)
 │   ├── train/images/           # Training images
 │   ├── train/labels/           # Training labels  
 │   ├── valid/images/           # Validation images
@@ -24,15 +24,15 @@ HeThongBaoChay/
 │   ├── test/images/            # Test images
 │   ├── test/labels/            # Test labels
 │   └── data.yaml              # Dataset configuration
-├── 🔧 install_requirements.py  # Advanced package installer
-├── 🚀 train_yolo_model.py     # Advanced training script
-├── ⚡ quick_train.py           # Quick training script
-├── 🧪 simple_train.py         # Simple training script
-├── 📊 check_data.py           # Data verification script
-└── 📚 README.md               # This file
+├── install_requirements.py  # Advanced package installer
+├── train_yolo_model.py     # Advanced training script
+├── quick_train.py           # Quick training script
+├── simple_train.py         # Simple training script
+├── check_data.py           # Data verification script
+└── README.md               # This file
 ```
 
-## 🚀 Bắt đầu nhanh
+##  Bắt đầu nhanh
 
 ### 1. Cài đặt môi trường
 
@@ -58,19 +58,19 @@ python check_data.py
 python quick_train.py
 ```
 
-#### 🔬 Training nâng cao (Cho chuyên gia)
+####  Training nâng cao (Cho chuyên gia)
 ```bash
 python train_yolo_model.py
 ```
 
-#### 📝 Training đơn giản (Cho việc học)
+####  Training đơn giản (Cho việc học)
 ```bash
 python simple_train.py
 ```
 
-## 🎯 Các phương pháp training
+## Các phương pháp training
 
-### 🏃‍♂️ Quick Training (`quick_train.py`)
+### ️ Quick Training (`quick_train.py`)
 - ✅ Dễ sử dụng, setup tự động
 - ✅ Best practices được tích hợp sẵn
 - ✅ Batch size tự động tối ưu

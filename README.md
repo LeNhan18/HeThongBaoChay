@@ -1,4 +1,6 @@
 # 🔥💨 YOLOv8 Fire & Smoke Detection Training
+.\venv\Scripts\Activate.ps1                                                                                                  
+
 
 Dự án training model YOLOv8 để phát hiện lửa và khói với các biểu đồ metrics chi tiết.
 

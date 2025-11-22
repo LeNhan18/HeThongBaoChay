@@ -90,7 +90,7 @@ class AdvancedFireSmokeTrainer:
         # Setup augmentation pipeline
         self.augmentation_pipeline = self._setup_advanced_augmentations()
         
-        logger.info(f"🚀 Advanced FireSmokeTrainer initialized")
+        logger.info(f"   Advanced FireSmokeTrainer initialized")
         logger.info(f"   Device: {self.device}")
         logger.info(f"   Model: {model_size}")
         logger.info(f"   Batch size: {self.batch_size}")
@@ -100,7 +100,7 @@ class AdvancedFireSmokeTrainer:
         """Setup optimal device configuration"""
         if torch.cuda.is_available():
             device_count = torch.cuda.device_count()
-            logger.info(f"🔥 Found {device_count} CUDA device(s)")
+            logger.info(f" Found {device_count} CUDA device(s)")
             
             # GPU optimization settings
             torch.backends.cudnn.benchmark = True
@@ -109,12 +109,12 @@ class AdvancedFireSmokeTrainer:
             
             # Multi-GPU setup
             if device_count > 1:
-                logger.info("🚀 Multi-GPU training enabled")
+                logger.info(" Multi-GPU training enabled")
                 return 'cuda'
             else:
                 return 'cuda:0'
         else:
-            logger.warning("⚠️ CUDA not available, using CPU")
+            logger.warning("️ CUDA not available, using CPU")
             return 'cpu'
     
     def _calculate_optimal_batch_size(self):
@@ -139,10 +139,10 @@ class AdvancedFireSmokeTrainer:
                 # Ensure it's a power of 2 for better GPU utilization
                 optimal_batch = 2 ** int(np.log2(optimal_batch))
                 
-                logger.info(f"🧮 Auto-calculated batch size: {optimal_batch} (GPU: {gpu_memory:.1f}GB)")
+                logger.info(f" Auto-calculated batch size: {optimal_batch} (GPU: {gpu_memory:.1f}GB)")
                 return optimal_batch
             except:
-                logger.warning("⚠️ Could not calculate optimal batch size, using default")
+                logger.warning(" Could not calculate optimal batch size, using default")
                 return 16
         else:
             return 8  # Conservative batch size for CPU
@@ -153,7 +153,7 @@ class AdvancedFireSmokeTrainer:
         
         # Model optimization settings
         if hasattr(model.model, 'half') and self.use_mixed_precision and 'cuda' in self.device:
-            logger.info("🔄 Enabling mixed precision training")
+            logger.info(" Enabling mixed precision training")
             
         return model
     
@@ -257,7 +257,7 @@ class AdvancedFireSmokeTrainer:
     
     def train_with_advanced_techniques(self):
         """Train model với advanced techniques"""
-        logger.info(f"🚀 Starting advanced training for {self.epochs} epochs...")
+        logger.info(f" Starting advanced training for {self.epochs} epochs...")
         
         # Get optimized hyperparameters
         hyperparams = self.get_optimized_hyperparameters()
@@ -318,7 +318,7 @@ class AdvancedFireSmokeTrainer:
         if self.enable_tensorboard:
             train_args['project'] = self.results_dir
             
-        logger.info("🔧 Training configuration:")
+        logger.info("    Training configuration:")
         logger.info(f"   Batch size: {self.batch_size}")
         logger.info(f"   Image size: {self.img_size}")
         logger.info(f"   Mixed precision: {self.use_mixed_precision}")
@@ -328,7 +328,7 @@ class AdvancedFireSmokeTrainer:
         # Start training
         self.results = self.model.train(**train_args)
         
-        logger.info("✅ Advanced training completed!")
+        logger.info(" Advanced training completed!")
         return self.results
     
     def train_ensemble_models(self):
@@ -336,7 +336,7 @@ class AdvancedFireSmokeTrainer:
         if not self.use_ensemble:
             return self.train_with_advanced_techniques()
         
-        logger.info("🎯 Training ensemble models...")
+        logger.info(" Training ensemble models...")
         
         ensemble_configs = [
             {'model_size': 'yolov8n', 'img_size': 640, 'augment_strength': 'light'},
@@ -347,7 +347,7 @@ class AdvancedFireSmokeTrainer:
         self.ensemble_results = []
         
         for i, config in enumerate(ensemble_configs):
-            logger.info(f"🏗️ Training ensemble model {i+1}/{len(ensemble_configs)}: {config['model_size']}")
+            logger.info(f" Training ensemble model {i+1}/{len(ensemble_configs)}: {config['model_size']}")
             
             # Create separate model
             model = YOLO(f"{config['model_size']}.pt")
@@ -492,7 +492,7 @@ class AdvancedFireSmokeTrainer:
             total_val_loss = df[val_loss_cols].sum(axis=1)
             ax6.plot(df.index, total_val_loss, label='Total Val Loss', color='darkblue', linewidth=2, linestyle='--')
         
-        ax6.set_title('📊 Total Loss')
+        ax6.set_title(' Total Loss')
         ax6.set_xlabel('Epoch')
         ax6.set_ylabel('Total Loss')
         ax6.legend()
@@ -503,13 +503,13 @@ class AdvancedFireSmokeTrainer:
         # Save plot
         plot_path = os.path.join(self.plots_dir, 'training_metrics.png')
         plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-        print(f"💾 Đã lưu biểu đồ training metrics: {plot_path}")
-        
+        print(f" Đã lưu biểu đồ training metrics: {plot_path}")
+
         plt.show()
     
     def plot_class_performance(self):
         """Vẽ biểu đồ hiệu suất theo từng class"""
-        print("📊 Tạo biểu đồ hiệu suất theo class...")
+        print(" Tạo biểu đồ hiệu suất theo class...")
         
         run_dir = self.results.save_dir
         results_csv = os.path.join(run_dir, 'results.csv')
@@ -525,7 +525,7 @@ class AdvancedFireSmokeTrainer:
         
         # Tạo figure
         fig, axes = plt.subplots(1, 2, figsize=(15, 6))
-        fig.suptitle('🔥💨 Performance by Class: Fire vs Smoke', fontsize=16, fontweight='bold')
+        fig.suptitle(' Performance by Class: Fire vs Smoke', fontsize=16, fontweight='bold')
         
         # Lấy metrics cuối cùng (epoch cuối)
         last_epoch = df.iloc[-1]
@@ -539,7 +539,7 @@ class AdvancedFireSmokeTrainer:
         
         colors = ['#FF6B6B', '#4ECDC4']  # Red cho Fire, Teal cho Smoke
         bars1 = ax1.bar(class_names, mAP_values if mAP_values else [0.8, 0.75], color=colors, alpha=0.8)
-        ax1.set_title('🎯 mAP@0.5 by Class')
+        ax1.set_title(' mAP@0.5 by Class')
         ax1.set_ylabel('mAP Score')
         ax1.set_ylim(0, 1)
         ax1.grid(True, alpha=0.3, axis='y')
@@ -567,7 +567,7 @@ class AdvancedFireSmokeTrainer:
                         bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.7),
                         fontsize=10, fontweight='bold')
         
-        ax2.set_title('🔍 Precision vs Recall')
+        ax2.set_title(' Precision vs Recall')
         ax2.set_xlabel('Precision')
         ax2.set_ylabel('Recall')
         ax2.set_xlim(0, 1)
@@ -583,13 +583,13 @@ class AdvancedFireSmokeTrainer:
         # Save plot
         plot_path = os.path.join(self.plots_dir, 'class_performance.png')
         plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-        print(f"💾 Đã lưu biểu đồ class performance: {plot_path}")
+        print(f" Đã lưu biểu đồ class performance: {plot_path}")
         
         plt.show()
     
     def plot_confusion_matrix(self):
         """Vẽ confusion matrix nếu có sẵn"""
-        print("📊 Tạo confusion matrix...")
+        print(" Tạo confusion matrix...")
         
         run_dir = self.results.save_dir
         confusion_matrix_path = os.path.join(run_dir, 'confusion_matrix.png')
@@ -603,7 +603,7 @@ class AdvancedFireSmokeTrainer:
             img = mpimg.imread(confusion_matrix_path)
             ax.imshow(img)
             ax.axis('off')
-            ax.set_title('🎯 Confusion Matrix', fontsize=14, fontweight='bold')
+            ax.set_title(' Confusion Matrix', fontsize=14, fontweight='bold')
             
             plt.tight_layout()
             plt.show()
