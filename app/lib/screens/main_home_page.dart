@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'dashboard_screen.dart';
 import 'alerts_screen.dart';
+import 'predict_screen.dart';
 
 class MainHomePage extends StatefulWidget {
   const MainHomePage({super.key});
@@ -15,9 +16,13 @@ class _MainHomePageState extends State<MainHomePage> {
   final AuthService _authService = AuthService();
   bool _isLoggingOut = false;
 
-  final List<Widget> _screens = [const DashboardScreen(), const AlertsScreen()];
+  final List<Widget> _screens = [
+    const DashboardScreen(),
+    const PredictScreen(),
+    const AlertsScreen(),
+  ];
 
-  final List<String> _titles = ['Giám Sát Camera', 'Lịch Sử Cảnh Báo'];
+  final List<String> _titles = ['Giám Sát Camera', 'Dự Đoán', 'Lịch Sử Cảnh Báo'];
 
   Future<void> _showLogoutDialog() async {
     return showDialog<void>(
@@ -108,6 +113,11 @@ class _MainHomePageState extends State<MainHomePage> {
             icon: Icon(Icons.videocam),
             activeIcon: Icon(Icons.videocam),
             label: 'Giám Sát',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.upload_file),
+            activeIcon: Icon(Icons.upload_file),
+            label: 'Dự Đoán',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.notification_important),

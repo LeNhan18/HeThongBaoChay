@@ -1,55 +1,23 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../constants.dart';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // Stream<User?> get authStateChanges => _auth.authStateChanges();
+  // We can't return User since it's from firebase_auth.
+  // We'll just return a stream of nulls or something, or remove it.
+  
+  // Since we are removing Firebase, we might not need this service at all, 
+  // but to keep compilation we will keep the methods.
 
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
-
-  Future<User?> signInWithEmail(String email, String password) async {
-    try {
-      UserCredential result = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      return result.user;
-    } catch (e) {
-      throw e;
-    }
+  Future<dynamic> signInWithEmail(String email, String password) async {
+    print('Mock signInWithEmail: $email');
+    return "mock_user";
   }
 
-  Future<User?> signUpWithEmail(String email, String password) async {
-    try {
-      UserCredential result = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      if (result.user != null) {
-        // Create user profile in Firestore
-        await _firestore
-            .collection('artifacts')
-            .doc(appId)
-            .collection('users')
-            .doc(result.user!.uid)
-            .collection('profile')
-            .doc('data')
-            .set({'email': email, 'createdAt': FieldValue.serverTimestamp()});
-      }
-
-      return result.user;
-    } catch (e) {
-      throw e;
-    }
+  Future<dynamic> signUpWithEmail(String email, String password) async {
+    print('Mock signUpWithEmail: $email');
+    return "mock_user";
   }
 
   Future<void> signOut() async {
-    try {
-      return await _auth.signOut();
-    } catch (e) {
-      throw e;
-    }
+    print('Mock signOut');
   }
 }
