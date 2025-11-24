@@ -37,11 +37,11 @@ sns.set_palette("husl")
 class AdvancedFireSmokeTrainer:
     def __init__(self, 
                  data_path="data/data.yaml", 
-                 model_size="yolov8n", 
+                 model_size="yolo11m",
                  epochs=200,
                  img_size=640,
-                 batch_size=None,
-                 use_mixed_precision=True,
+                 batch_size=8,
+                 use_mixed_precision=False,
                  enable_tensorboard=True,
                  use_ensemble=False):
         """
@@ -49,7 +49,7 @@ class AdvancedFireSmokeTrainer:
         
         Args:
             data_path: Đường dẫn đến file data.yaml
-            model_size: Kích thước model (yolov8n, yolov8s, yolov8m, yolov8l, yolov8x)
+            model_size: Kích thước model (yolo11n, yolo11s, yolo11m, yolo11l, yolo11x)
             epochs: Số epochs để train
             img_size: Kích thước ảnh input
             batch_size: Batch size (auto-calculate nếu None)
@@ -64,6 +64,7 @@ class AdvancedFireSmokeTrainer:
         self.use_mixed_precision = use_mixed_precision
         self.enable_tensorboard = enable_tensorboard
         self.use_ensemble = use_ensemble
+
         
         # Tạo thư mục kết quả với timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -97,55 +98,81 @@ class AdvancedFireSmokeTrainer:
         logger.info(f"   Image size: {img_size}")
     
     def _setup_device(self):
-        """Setup optimal device configuration"""
+        """Setup optimal device configuration with robust error handling"""
         if torch.cuda.is_available():
-            device_count = torch.cuda.device_count()
-            logger.info(f" Found {device_count} CUDA device(s)")
-            
-            # GPU optimization settings
-            torch.backends.cudnn.benchmark = True
-            torch.backends.cuda.matmul.allow_tf32 = True
-            torch.backends.cudnn.allow_tf32 = True
-            
-            # Multi-GPU setup
-            if device_count > 1:
-                logger.info(" Multi-GPU training enabled")
-                return 'cuda'
-            else:
-                return 'cuda:0'
+            try:
+                device_count = torch.cuda.device_count()
+                logger.info(f" Found {device_count} CUDA device(s)")
+                
+                # Clear GPU cache first
+                torch.cuda.empty_cache()
+                
+                # Check GPU memory
+                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                logger.info(f" GPU Memory: {gpu_memory:.1f} GB")
+                
+                # Conservative GPU optimization settings (prevent memory issues)
+                torch.backends.cudnn.benchmark = False  # More stable
+                torch.backends.cuda.matmul.allow_tf32 = False  # More stable
+                torch.backends.cudnn.allow_tf32 = False  # More stable
+                
+                # Test CUDA functionality
+                test_tensor = torch.randn(2, 2, device='cuda')
+                test_result = test_tensor + 1
+                del test_tensor, test_result
+                torch.cuda.synchronize()
+                
+                logger.info(" CUDA functionality test passed")
+                return 'cuda:0'  # Always use single GPU to avoid conflicts
+                
+            except Exception as e:
+                logger.error(f" CUDA setup failed: {e}")
+                logger.warning(" Falling back to CPU training")
+                return 'cpu'
         else:
             logger.warning("️ CUDA not available, using CPU")
             return 'cpu'
     
     def _calculate_optimal_batch_size(self):
-        """Tự động tính toán batch size tối ưu dựa trên GPU memory"""
+        """Tự động tính toán batch size tối ưu dựa trên GPU memory với safety margins"""
         if 'cuda' in self.device:
             try:
                 gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3  # GB
+                free_memory = torch.cuda.mem_get_info()[0] / 1024**3  # Available memory
                 
-                # Estimate based on model size and GPU memory
+                logger.info(f" GPU Memory - Total: {gpu_memory:.1f}GB, Available: {free_memory:.1f}GB")
+                
+                # Very conservative estimates to prevent CUDA errors
                 size_multipliers = {
-                    'yolov8n': 1.0,
-                    'yolov8s': 1.5,
-                    'yolov8m': 2.5,
-                    'yolov8l': 4.0,
-                    'yolov8x': 6.0
+                    'yolo11n': 1.0,
+                    'yolo11s': 2.0,  # More conservative
+                    'yolo11m': 4.0,
+                    'yolo11l': 6.0,
+                    'yolo11x': 8.0
                 }
                 
-                base_batch = max(2, int(gpu_memory * 2))  # Base calculation
-                multiplier = size_multipliers.get(self.model_size, 1.0)
+                # Use available memory with large safety margin
+                safety_margin = 0.3  # Use only 70% of available memory
+                usable_memory = free_memory * (1 - safety_margin)
+                
+                # Conservative base calculation
+                base_batch = max(1, int(usable_memory))  # Much more conservative
+                multiplier = size_multipliers.get(self.model_size, 2.0)
                 optimal_batch = max(1, int(base_batch / multiplier))
                 
-                # Ensure it's a power of 2 for better GPU utilization
-                optimal_batch = 2 ** int(np.log2(optimal_batch))
+                # Cap at reasonable maximum
+                optimal_batch = min(optimal_batch, 16)  # Max 16 to prevent memory issues
                 
-                logger.info(f" Auto-calculated batch size: {optimal_batch} (GPU: {gpu_memory:.1f}GB)")
+                # Ensure minimum viable batch size
+                optimal_batch = max(1, optimal_batch)
+                
+                logger.info(f" Conservative batch size: {optimal_batch} (Available: {free_memory:.1f}GB)")
                 return optimal_batch
-            except:
-                logger.warning(" Could not calculate optimal batch size, using default")
-                return 16
+            except Exception as e:
+                logger.warning(f" Batch size calculation failed: {e}, using minimal safe batch size")
+                return 2  # Very small default
         else:
-            return 8  # Conservative batch size for CPU
+            return 4  # Small batch size for CPU
     
     def _load_optimized_model(self):
         """Load model với optimization settings"""
@@ -232,8 +259,6 @@ class AdvancedFireSmokeTrainer:
             'box': 7.5,                     # Box regression loss gain
             'cls': 0.5,                     # Classification loss gain  
             'dfl': 1.5,                     # Distribution focal loss gain
-            'fl_gamma': 0.0,                # Focal loss gamma
-            'label_smoothing': 0.0,         # Label smoothing epsilon
             
             # Augmentation parameters (enhanced for fire/smoke)
             'hsv_h': 0.015,                 # Image HSV-Hue augmentation
@@ -247,89 +272,117 @@ class AdvancedFireSmokeTrainer:
             'flipud': 0.0,                  # Image flip up-down (probability)
             'fliplr': 0.5,                  # Image flip left-right (probability)
             'mosaic': 1.0,                  # Image mosaic (probability)
-            'mixup': 0.15,                  # Image mixup (probability)
-            'copy_paste': 0.3,              # Segment copy-paste (probability)
+            'mixup': 0.1,                  # Image mixup (probability)
+            'copy_paste': 0.1,              # Segment copy-paste (probability)
             
             # Advanced augmentations for fire/smoke
             'erasing': 0.4,                 # Random erasing probability
-            'crop_fraction': 1.0,           # Image crop fraction
         }
     
     def train_with_advanced_techniques(self):
-        """Train model với advanced techniques"""
-        logger.info(f" Starting advanced training for {self.epochs} epochs...")
+        """Train model với advanced techniques và robust error handling"""
+        logger.info(f" Starting SAFE advanced training for {self.epochs} epochs...")
+        
+        # Clear GPU memory before training
+        if 'cuda' in self.device:
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
         
         # Get optimized hyperparameters
         hyperparams = self.get_optimized_hyperparameters()
         
-        # Advanced training arguments
+        # CONSERVATIVE training arguments để tránh CUDA errors
         train_args = {
-            # Basic settings
+            # Basic settings - CONSERVATIVE
             'data': self.data_path,
             'epochs': self.epochs,
-            'imgsz': self.img_size,
-            'batch': self.batch_size,
+            'imgsz': min(self.img_size, 640),  # Cap image size
+            'batch': min(self.batch_size, 4),  # Cap batch size for safety
             'device': self.device,
-            'workers': min(os.cpu_count(), 8),
+            'workers': min(os.cpu_count()//2, 4),  # Reduce workers
             
             # Output settings
             'project': self.results_dir,
             'name': f'advanced_fire_smoke_{self.model_size}',
             'exist_ok': True,
             'save': True,
-            'save_period': 25,              # Save checkpoint every 25 epochs
-            'cache': True,                  # Cache images for faster training
+            'save_period': 50,              # Less frequent saves
+            'cache': False,                 # No caching to save memory
             'plots': True,
             'val': True,
             'verbose': True,
             
-            # Optimization settings
-            'optimizer': 'AdamW',           # AdamW optimizer
-            'close_mosaic': 15,             # Disable mosaic in last N epochs
-            'amp': self.use_mixed_precision, # Mixed precision training
-            'fraction': 1.0,                # Dataset fraction to train on
-            'profile': False,               # Profile ONNX and TensorRT speeds
+            # SAFE Optimization settings
+            'optimizer': 'SGD',             # More stable than AdamW
+            'close_mosaic': 10,             # Earlier mosaic disable
+            'amp': False,                   # Disable AMP for stability
+            'fraction': 1.0,
+            'profile': False,
             
-            # Early stopping and validation
-            'patience': 50,                 # Early stopping patience
-            'single_cls': False,            # Train multi-class data as single-class
-            'rect': False,                  # Rectangular training
-            'cos_lr': True,                 # Cosine learning rate scheduler
-            'overlap_mask': True,           # Masks should overlap during training
-            'mask_ratio': 4,                # Mask downsample ratio
+            # Conservative training settings
+            'patience': 30,                 # Earlier stopping
+            'single_cls': False,
+            'rect': False,                  # Disable rect training
+            'cos_lr': False,                # Use linear LR for stability
+            'multi_scale': False,           # Disable multi-scale for stability
             
             # Resume and pretrain
-            'resume': False,                # Resume training from last checkpoint
-            'nosave': False,                # Only save final checkpoint
-            'noval': False,                 # Only validate final epoch
-            'noautoanchor': False,          # Disable autoanchor check
-            'noplots': False,               # Save no plot files
-            'evolve': None,                 # Evolve hyperparameters
-            'bucket': '',                   # gsutil bucket
-            'cfg': None,                    # Path to model.yaml
-            'sync_bn': False,               # Use SyncBatchNorm
-            'freeze': None,                 # Freeze layers
-            'multi_scale': True,            # Multi-scale training
+            'resume': False,
+            'freeze': None,
             
             **hyperparams
         }
         
-        # Add TensorBoard callback if enabled
-        if self.enable_tensorboard:
-            train_args['project'] = self.results_dir
-            
-        logger.info("    Training configuration:")
-        logger.info(f"   Batch size: {self.batch_size}")
-        logger.info(f"   Image size: {self.img_size}")
-        logger.info(f"   Mixed precision: {self.use_mixed_precision}")
-        logger.info(f"   Multi-scale: {train_args['multi_scale']}")
-        logger.info(f"   Cosine LR: {train_args['cos_lr']}")
+        logger.info("🛡️ SAFE Training configuration:")
+        logger.info(f"   Batch size: {train_args['batch']} (capped for safety)")
+        logger.info(f"   Image size: {train_args['imgsz']}")
+        logger.info(f"   Mixed precision: {train_args['amp']} (disabled for stability)")
+        logger.info(f"   Multi-scale: {train_args['multi_scale']} (disabled)")
+        logger.info(f"   Optimizer: {train_args['optimizer']}")
         
-        # Start training
-        self.results = self.model.train(**train_args)
+        # Multiple attempts with progressively more conservative settings
+        attempts = [
+            train_args,  # First attempt with current settings
+            {**train_args, 'batch': 2, 'imgsz': 416},  # Second attempt: smaller batch/image
+            {**train_args, 'batch': 1, 'imgsz': 320, 'device': 'cpu'},  # Final attempt: CPU fallback
+        ]
         
-        logger.info(" Advanced training completed!")
-        return self.results
+        for attempt, args in enumerate(attempts, 1):
+            try:
+                logger.info(f"🔄 Training attempt {attempt}/{len(attempts)}...")
+                
+                if 'cuda' in args['device']:
+                    # Clear memory before each attempt
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+                    
+                    # Log memory status
+                    allocated = torch.cuda.memory_allocated(0) / 1024**3
+                    cached = torch.cuda.memory_reserved(0) / 1024**3
+                    logger.info(f"   GPU Memory - Allocated: {allocated:.2f}GB, Cached: {cached:.2f}GB")
+                
+                # Start training with current configuration
+                self.results = self.model.train(**args)
+                
+                logger.info(f"✅ Training completed successfully on attempt {attempt}!")
+                return self.results
+                
+            except RuntimeError as e:
+                logger.error(f"❌ Training attempt {attempt} failed: {e}")
+                
+                if 'cuda' in args['device'] and 'CUDA' in str(e):
+                    logger.warning(f"⚠️ CUDA error detected, clearing memory...")
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+                
+                if attempt == len(attempts):
+                    logger.error(f"🚨 All training attempts failed!")
+                    raise
+                else:
+                    logger.info(f"🔄 Trying more conservative settings...")
+                    continue
+        
+        raise RuntimeError("All training attempts failed")
     
     def train_ensemble_models(self):
         """Train ensemble of models with different configurations"""
@@ -339,9 +392,9 @@ class AdvancedFireSmokeTrainer:
         logger.info(" Training ensemble models...")
         
         ensemble_configs = [
-            {'model_size': 'yolov8n', 'img_size': 640, 'augment_strength': 'light'},
-            {'model_size': 'yolov8s', 'img_size': 640, 'augment_strength': 'medium'},
-            {'model_size': 'yolov8m', 'img_size': 832, 'augment_strength': 'heavy'},
+            {'model_size': 'yolo11n', 'img_size': 640, 'augment_strength': 'light'},
+            {'model_size': 'yolo11s', 'img_size': 640, 'augment_strength': 'medium'},
+            {'model_size': 'yolo11m', 'img_size': 832, 'augment_strength': 'heavy'},
         ]
         
         self.ensemble_results = []
@@ -386,7 +439,7 @@ class AdvancedFireSmokeTrainer:
                 'config': config
             })
         
-        logger.info("✅ Ensemble training completed!")
+        logger.info(" Ensemble training completed!")
         return self.ensemble_results
     
     def plot_training_metrics(self):
@@ -444,7 +497,7 @@ class AdvancedFireSmokeTrainer:
             ax3.plot(df.index, df['metrics/precision(B)'], label='Precision', color='purple', linewidth=2, marker='^', markersize=3)
         if 'metrics/recall(B)' in df.columns:
             ax3.plot(df.index, df['metrics/recall(B)'], label='Recall', color='orange', linewidth=2, marker='v', markersize=3)
-        ax3.set_title('🔍 Precision & Recall')
+        ax3.set_title(' Precision & Recall')
         ax3.set_xlabel('Epoch')
         ax3.set_ylabel('Score')
         ax3.legend()
@@ -656,7 +709,7 @@ class AdvancedFireSmokeTrainer:
     
     def hyperparameter_optimization(self, n_trials=20):
         """Tối ưu hóa hyperparameters với Optuna"""
-        logger.info(f"🔍 Starting hyperparameter optimization with {n_trials} trials...")
+        logger.info(f" Starting hyperparameter optimization with {n_trials} trials...")
         
         def objective(trial):
             # Suggest hyperparameters
@@ -779,7 +832,7 @@ class AdvancedFireSmokeTrainer:
         colors = ['#FF6B6B', '#4ECDC4', '#45B7D1']
         
         bars = ax1.bar(splits, counts, color=colors[:len(splits)], alpha=0.8)
-        ax1.set_title('📈 Dataset Split Distribution')
+        ax1.set_title(' Dataset Split Distribution')
         ax1.set_ylabel('Number of Images')
         
         for bar, count in zip(bars, counts):
@@ -801,7 +854,7 @@ class AdvancedFireSmokeTrainer:
         
         wedges, texts, autotexts = ax2.pie(class_counts, labels=class_labels, autopct='%1.1f%%',
                                           colors=['#FF6B6B', '#4ECDC4'], startangle=90)
-        ax2.set_title('🔥💨 Class Distribution')
+        ax2.set_title(' Class Distribution')
         
         # 3. Average image sizes
         ax3 = axes[1, 0]
@@ -814,7 +867,7 @@ class AdvancedFireSmokeTrainer:
         ax3.bar(x - width/2, avg_heights, width, label='Height', color='#FF6B6B', alpha=0.8)
         ax3.bar(x + width/2, avg_widths, width, label='Width', color='#4ECDC4', alpha=0.8)
         
-        ax3.set_title('📐 Average Image Dimensions')
+        ax3.set_title(' Average Image Dimensions')
         ax3.set_ylabel('Pixels')
         ax3.set_xticks(x)
         ax3.set_xticklabels(splits)
@@ -837,7 +890,7 @@ class AdvancedFireSmokeTrainer:
         
         if all_bbox_areas:
             ax4.hist(all_bbox_areas, bins=30, alpha=0.7, color='#45B7D1', edgecolor='black')
-            ax4.set_title('📦 Bounding Box Area Distribution')
+            ax4.set_title(' Bounding Box Area Distribution')
             ax4.set_xlabel('Normalized Area')
             ax4.set_ylabel('Frequency')
         
@@ -846,7 +899,7 @@ class AdvancedFireSmokeTrainer:
         # Save plot
         plot_path = os.path.join(self.plots_dir, 'data_analysis.png')
         plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-        logger.info(f"💾 Data analysis plot saved: {plot_path}")
+        logger.info(f" Data analysis plot saved: {plot_path}")
         plt.show()
     
     def run_complete_advanced_training(self):
@@ -861,24 +914,20 @@ class AdvancedFireSmokeTrainer:
             # 2. Verify data
             logger.info(" Step 2: Data verification...")
             data_config = self.verify_data()
-            
+
+
             # 3. Hyperparameter optimization (optional)
-            if self.epochs > 100:
-                logger.info(" Step 3: Hyperparameter optimization...")
-                best_params = self.hyperparameter_optimization(n_trials=10)
-                
-                # Update model with best parameters
-                self.get_optimized_hyperparameters().update(best_params)
-            
+
+
             # 4. Train model(s)
-            logger.info("🏋️ Step 4: Model training...")
+            logger.info(" Step 4: Model training...")
             if self.use_ensemble:
                 results = self.train_ensemble_models()
             else:
                 results = self.train_with_advanced_techniques()
             
             # 5. Advanced evaluation
-            logger.info("📈 Step 5: Advanced evaluation...")
+            logger.info(" Step 5: Advanced evaluation...")
             metrics = self.advanced_evaluation()
             
             # 6. Generate comprehensive plots
@@ -899,8 +948,8 @@ class AdvancedFireSmokeTrainer:
             # 9. Generate final report
             self.generate_training_report()
             
-            logger.info("🎉 Complete advanced training pipeline finished!")
-            logger.info(f"📁 Results saved in: {self.results_dir}")
+            logger.info("Lộ trình training thành công hoàn tất!")
+            logger.info(f" Results saved in: {self.results_dir}")
             
             return results, metrics
             
@@ -908,7 +957,7 @@ class AdvancedFireSmokeTrainer:
             logger.error(f" Training pipeline failed: {e}")
             raise
         finally:
-            if self.writer:
+             if self.writer:
                 self.writer.close()
     
     def advanced_evaluation(self):
@@ -948,7 +997,6 @@ class AdvancedFireSmokeTrainer:
         # Create comprehensive metrics dashboard
         fig = plt.figure(figsize=(20, 15))
         gs = fig.add_gridspec(3, 4, hspace=0.3, wspace=0.3)
-        
         # Read results data
         run_dir = self.results.save_dir if hasattr(self, 'results') else None
         if run_dir and os.path.exists(os.path.join(run_dir, 'results.csv')):
@@ -1021,7 +1069,7 @@ class AdvancedFireSmokeTrainer:
         
         ax5.set_xlim(-0.5, len(layers)-0.5)
         ax5.set_ylim(-0.1, 1.1)
-        ax5.set_title(f'🏗️ {self.model_size.upper()} Architecture Overview')
+        ax5.set_title(f' {self.model_size.upper()} Architecture Overview')
         ax5.axis('off')
         
         # 6. Performance comparison
@@ -1207,8 +1255,8 @@ class AdvancedFireSmokeTrainer:
             f.write(f"- **Batch Size:** {self.batch_size}\n")
             f.write(f"- **Epochs:** {self.epochs}\n")
             f.write(f"- **Device:** {self.device}\n")
-            f.write(f"- **Mixed Precision:** {'✅' if self.use_mixed_precision else '❌'}\n")
-            f.write(f"- **Ensemble Training:** {'✅' if self.use_ensemble else '❌'}\n\n")
+            f.write(f"- **Mixed Precision:** {'' if self.use_mixed_precision else ''}\n")
+            f.write(f"- **Ensemble Training:** {'' if self.use_ensemble else ''}\n\n")
             
             f.write("##  Performance Results\n\n")
             f.write("| Metric | Value |\n")
@@ -1256,11 +1304,11 @@ def main():
     # Advanced training configuration
     trainer = AdvancedFireSmokeTrainer(
         data_path="data/data.yaml",
-        model_size="yolov8s",              # Upgraded to yolov8s for better performance
-        epochs=200,                        # Increased epochs for better convergence
+        model_size="yolo11s",              # Upgraded to yolo11s for latest version
+        epochs=100,                        # Increased epochs for better convergence
         img_size=640,                      # Standard input size
-        batch_size=None,                   # Auto-calculate optimal batch size
-        use_mixed_precision=True,          # Enable mixed precision training
+        batch_size=8,                   # Auto-calculate optimal batch size
+        use_mixed_precision=False,          # Enable mixed precision training
         enable_tensorboard=True,           # Enable TensorBoard logging
         use_ensemble=False                 # Set to True for ensemble training
     )
@@ -1292,5 +1340,4 @@ if __name__ == "__main__":
     # Set environment variables for optimal performance
     os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
     os.environ['TORCH_USE_CUDA_DSA'] = '1'
-    
     trainer, results, metrics = main()
