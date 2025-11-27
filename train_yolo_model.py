@@ -993,7 +993,7 @@ class AdvancedFireSmokeTrainer:
     def plot_advanced_metrics(self):
         """Plot advanced metrics và comparisons"""
         logger.info(" Creating advanced metrics visualizations...")
-        
+        logger.warning("This a placeholde implementaion for advanced metrics plotting.")
         # Create comprehensive metrics dashboard
         fig = plt.figure(figsize=(20, 15))
         gs = fig.add_gridspec(3, 4, hspace=0.3, wspace=0.3)
