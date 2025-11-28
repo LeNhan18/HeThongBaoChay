@@ -4,7 +4,7 @@ import os
 
 # File path
 csv_path = r'e:\HeThongBaoChay\training_results_20251121_213634\optuna_trials\trial_2\results.csv'
-output_path = r'e:\HeThongBaoChay\training_results_20251121_213634\optuna_trials\trial_2\metrics_plot.png'
+output_path = r'e:\HeThongBaoChay\training_results_20251121_021040\optuna_trials\trial_2\metrics_plot.png'
 
 # Read the CSV file
 try:
@@ -63,7 +63,7 @@ axes[1, 1].set_xlabel('Epoch')
 axes[1, 1].set_ylabel('Score')
 axes[1, 1].legend()
 axes[1, 1].grid(True)
-
+axes
 # Plot 6: Learning Rate
 axes[1, 2].plot(df['epoch'], df['lr/pg0'], label='lr/pg0')
 axes[1, 2].plot(df['epoch'], df['lr/pg1'], label='lr/pg1')
