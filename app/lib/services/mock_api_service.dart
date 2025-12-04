@@ -5,24 +5,10 @@ class MockApiService {
   final List<Map<String, dynamic>> _mockCameras = [
     {
       'id': '1',
-      'name': 'Camera Tầng 1',
+      'name': 'System Camera (Live)',
       'status': 'online',
       'thumbnailUrl':
-          'https://via.placeholder.com/640x360/4CAF50/FFFFFF?text=Camera+1',
-    },
-    {
-      'id': '2',
-      'name': 'Camera Tầng 2',
-      'status': 'online',
-      'thumbnailUrl':
-          'https://via.placeholder.com/640x360/2196F3/FFFFFF?text=Camera+2',
-    },
-    {
-      'id': '3',
-      'name': 'Camera Sân Thượng',
-      'status': 'offline',
-      'thumbnailUrl':
-          'https://via.placeholder.com/640x360/FF9800/FFFFFF?text=Camera+3',
+          'https://via.placeholder.com/640x360/4CAF50/FFFFFF?text=System+Camera',
     },
   ];
 

@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import 'dashboard_screen.dart';
 import 'alerts_screen.dart';
 import 'predict_screen.dart';
+import 'camera_detection_screen.dart';
 
 class MainHomePage extends StatefulWidget {
   const MainHomePage({super.key});
@@ -22,7 +23,11 @@ class _MainHomePageState extends State<MainHomePage> {
     const AlertsScreen(),
   ];
 
-  final List<String> _titles = ['Giám Sát Camera', 'Dự Đoán', 'Lịch Sử Cảnh Báo'];
+  final List<String> _titles = [
+    'Giám Sát Camera',
+    'Dự Đoán',
+    'Lịch Sử Cảnh Báo',
+  ];
 
   Future<void> _showLogoutDialog() async {
     return showDialog<void>(
@@ -99,6 +104,22 @@ class _MainHomePageState extends State<MainHomePage> {
         ],
       ),
       body: _screens[_selectedIndex],
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const CameraDetectionScreen(),
+            ),
+          );
+        },
+        icon: const Icon(Icons.camera_alt),
+        label: const Text('Phát Hiện Lửa'),
+        backgroundColor: Colors.deepOrange,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        tooltip: 'Mở camera phát hiện lửa real-time',
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) {
