@@ -94,7 +94,8 @@ class _PredictScreenState extends State<PredictScreen> {
       if (result['fire_detected'] == true) {
         await NotificationService().showNotification(
           title: 'CẢNH BÁO CHÁY!',
-          body: 'Phát hiện lửa trong ${_fileType == 'video' ? 'video' : 'ảnh'} vừa phân tích!',
+          body:
+              'Phát hiện lửa trong ${_fileType == 'video' ? 'video' : 'ảnh'} vừa phân tích!',
         );
       }
 
@@ -105,43 +106,48 @@ class _PredictScreenState extends State<PredictScreen> {
       setState(() {
         _isProcessing = false;
       });
-      
+
       // If video result is available, play it with bounding boxes
-      if (_predictionResult != null && 
+      if (_predictionResult != null &&
           _predictionResult!.containsKey('result_video_path')) {
         final resultVideoPath = _predictionResult!['result_video_path'];
         debugPrint('🎥 Result video path: $resultVideoPath');
-        
+
         final videoFile = File(resultVideoPath);
         final exists = await videoFile.exists();
         final size = exists ? await videoFile.length() : 0;
-        debugPrint('📹 Result video exists: $exists, size: ${size / (1024*1024):.2f} MB');
-        
+        debugPrint(
+          '📹 Result video exists: $exists, size: ${(size / (1024 * 1024)).toStringAsFixed(2)} MB',
+        );
+
         if (exists && size > 0) {
           _videoController?.dispose();
           _videoController = VideoPlayerController.file(videoFile)
-            ..initialize().then((_) {
-              debugPrint('✅ Result video with bounding boxes initialized');
-              setState(() {});
-              
-              // Show notification about bounding boxes
-              final hasBoxes = _predictionResult!['has_bounding_boxes'] ?? false;
-              if (hasBoxes) {
-                final detections = _predictionResult!['detections'] ?? 0;
-                final fireCount = _predictionResult!['fire_count'] ?? 0;
-                final smokeCount = _predictionResult!['smoke_count'] ?? 0;
-                
-                _showSuccess(
-                  'Video phân tích hoàn tất với $detections phát hiện! '
-                  '🔥 Lửa: $fireCount, 💨 Khói: $smokeCount'
-                );
-              }
-              
-              _videoController!.play();
-            }).catchError((error) {
-              debugPrint('❌ Error initializing result video: $error');
-              _showError('Lỗi khởi tạo video kết quả: $error');
-            });
+            ..initialize()
+                .then((_) {
+                  debugPrint('✅ Result video with bounding boxes initialized');
+                  setState(() {});
+
+                  // Show notification about bounding boxes
+                  final hasBoxes =
+                      _predictionResult!['has_bounding_boxes'] ?? false;
+                  if (hasBoxes) {
+                    final detections = _predictionResult!['detections'] ?? 0;
+                    final fireCount = _predictionResult!['fire_count'] ?? 0;
+                    final smokeCount = _predictionResult!['smoke_count'] ?? 0;
+
+                    _showSuccess(
+                      'Video phân tích hoàn tất với $detections phát hiện! '
+                      '🔥 Lửa: $fireCount, 💨 Khói: $smokeCount',
+                    );
+                  }
+
+                  _videoController!.play();
+                })
+                .catchError((error) {
+                  debugPrint('❌ Error initializing result video: $error');
+                  _showError('Lỗi khởi tạo video kết quả: $error');
+                });
         } else {
           _showError('Video kết quả không hợp lệ hoặc bị lỗi');
         }
@@ -221,7 +227,11 @@ class _PredictScreenState extends State<PredictScreen> {
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.psychology, color: Colors.white, size: 28),
+                  child: const Icon(
+                    Icons.psychology,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                 ).animate().scale(duration: 600.ms),
                 const SizedBox(width: 16),
                 Text(
@@ -289,32 +299,30 @@ class _PredictScreenState extends State<PredictScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(18),
-                  child: _fileType == 'image'
-                      ? Image.file(
-                    _selectedFile!,
-                    fit: BoxFit.contain,
-                  )
-                      : (_videoController != null &&
-                      _videoController!.value.isInitialized)
-                      ? AspectRatio(
-                    aspectRatio: _videoController!.value.aspectRatio,
-                    child: VideoPlayer(_videoController!),
-                  )
-                      : Center(
-                    child: Shimmer.fromColors(
-                      baseColor: Colors.grey[300]!,
-                      highlightColor: Colors.grey[100]!,
-                      child:
-                      const Icon(Icons.video_library, size: 64),
-                    ),
-                  ),
+                  child:
+                      _fileType == 'image'
+                          ? Image.file(_selectedFile!, fit: BoxFit.contain)
+                          : (_videoController != null &&
+                              _videoController!.value.isInitialized)
+                          ? AspectRatio(
+                            aspectRatio: _videoController!.value.aspectRatio,
+                            child: VideoPlayer(_videoController!),
+                          )
+                          : Center(
+                            child: Shimmer.fromColors(
+                              baseColor: Colors.grey[300]!,
+                              highlightColor: Colors.grey[100]!,
+                              child: const Icon(Icons.video_library, size: 64),
+                            ),
+                          ),
                 ),
               ).animate().fadeIn(duration: 400.ms).scale(delay: 100.ms),
 
               const SizedBox(height: 16),
 
               // Video result indicator
-              if (_fileType == 'video' && _predictionResult != null && 
+              if (_fileType == 'video' &&
+                  _predictionResult != null &&
                   _predictionResult!.containsKey('has_bounding_boxes') &&
                   _predictionResult!['has_bounding_boxes'] == true)
                 Container(
@@ -322,14 +330,21 @@ class _PredictScreenState extends State<PredictScreen> {
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [Colors.green.withOpacity(0.1), Colors.blue.withOpacity(0.1)],
+                      colors: [
+                        Colors.green.withOpacity(0.1),
+                        Colors.blue.withOpacity(0.1),
+                      ],
                     ),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.green.withOpacity(0.3)),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.visibility, color: Colors.green[600], size: 20),
+                      Icon(
+                        Icons.visibility,
+                        color: Colors.green[600],
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -383,9 +398,10 @@ class _PredictScreenState extends State<PredictScreen> {
                 height: 60,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: _isProcessing
-                        ? [Colors.grey[400]!, Colors.grey[500]!]
-                        : [Colors.deepOrange, Colors.orange[700]!],
+                    colors:
+                        _isProcessing
+                            ? [Colors.grey[400]!, Colors.grey[500]!]
+                            : [Colors.deepOrange, Colors.orange[700]!],
                   ),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
@@ -402,45 +418,49 @@ class _PredictScreenState extends State<PredictScreen> {
                     onTap: _isProcessing ? null : _predict,
                     borderRadius: BorderRadius.circular(16),
                     child: Center(
-                      child: _isProcessing
-                          ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 3,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Text(
-                            'Đang phân tích...',
-                            style: GoogleFonts.poppins(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      )
-                          : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.auto_awesome,
-                              color: Colors.white, size: 24),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Phân Tích Ngay',
-                            style: GoogleFonts.poppins(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
+                      child:
+                          _isProcessing
+                              ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 3,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Text(
+                                    'Đang phân tích...',
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              )
+                              : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.auto_awesome,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Phân Tích Ngay',
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
                     ),
                   ),
                 ),
@@ -487,8 +507,11 @@ class _PredictScreenState extends State<PredictScreen> {
                             ),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.analytics,
-                              color: Colors.white, size: 24),
+                          child: const Icon(
+                            Icons.analytics,
+                            color: Colors.white,
+                            size: 24,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Text(
@@ -507,15 +530,18 @@ class _PredictScreenState extends State<PredictScreen> {
                       _buildModernResultItem(
                         icon: Icons.local_fire_department,
                         label: 'Phát hiện cháy',
-                        value: _predictionResult!['fire_detected']
-                            ? 'CÓ'
-                            : 'KHÔNG',
-                        valueColor: _predictionResult!['fire_detected']
-                            ? Colors.red
-                            : Colors.green,
-                        iconColor: _predictionResult!['fire_detected']
-                            ? Colors.red
-                            : Colors.green,
+                        value:
+                            _predictionResult!['fire_detected']
+                                ? 'CÓ'
+                                : 'KHÔNG',
+                        valueColor:
+                            _predictionResult!['fire_detected']
+                                ? Colors.red
+                                : Colors.green,
+                        iconColor:
+                            _predictionResult!['fire_detected']
+                                ? Colors.red
+                                : Colors.green,
                       ),
 
                     if (_predictionResult!.containsKey('confidence'))
@@ -523,7 +549,7 @@ class _PredictScreenState extends State<PredictScreen> {
                         icon: Icons.speed,
                         label: 'Độ tin cậy',
                         value:
-                        '${(_predictionResult!['confidence'] * 100).toStringAsFixed(1)}%',
+                            '${(_predictionResult!['confidence'] * 100).toStringAsFixed(1)}%',
                         valueColor: Colors.blue[700]!,
                         iconColor: Colors.blue,
                       ),
@@ -538,7 +564,8 @@ class _PredictScreenState extends State<PredictScreen> {
                       ),
 
                     // Bounding Box Information for Video
-                    if (_fileType == 'video' && _predictionResult!.containsKey('has_bounding_boxes'))
+                    if (_fileType == 'video' &&
+                        _predictionResult!.containsKey('has_bounding_boxes'))
                       _buildBoundingBoxInfo(),
 
                     if (_predictionResult!.containsKey('processing_time'))
@@ -546,7 +573,7 @@ class _PredictScreenState extends State<PredictScreen> {
                         icon: Icons.timer,
                         label: 'Thời gian xử lý',
                         value:
-                        '${_predictionResult!['processing_time'].toStringAsFixed(2)}s',
+                            '${_predictionResult!['processing_time'].toStringAsFixed(2)}s',
                         valueColor: Colors.purple[700]!,
                         iconColor: Colors.purple,
                       ),
@@ -571,10 +598,10 @@ class _PredictScreenState extends State<PredictScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.cloud_upload_outlined,
-                      size: 80,
-                      color: Colors.deepOrange.withOpacity(0.4),
-                    )
+                          Icons.cloud_upload_outlined,
+                          size: 80,
+                          color: Colors.deepOrange.withOpacity(0.4),
+                        )
                         .animate(onPlay: (controller) => controller.repeat())
                         .shimmer(duration: 2000.ms),
                     const SizedBox(height: 16),
@@ -607,15 +634,16 @@ class _PredictScreenState extends State<PredictScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: gradient),
         borderRadius: BorderRadius.circular(14),
-        boxShadow: onPressed != null
-            ? [
-          BoxShadow(
-            color: gradient[0].withOpacity(0.4),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ]
-            : [],
+        boxShadow:
+            onPressed != null
+                ? [
+                  BoxShadow(
+                    color: gradient[0].withOpacity(0.4),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+                : [],
       ),
       child: Material(
         color: Colors.transparent,
@@ -647,19 +675,29 @@ class _PredictScreenState extends State<PredictScreen> {
     final fireCount = _predictionResult!['fire_count'] ?? 0;
     final smokeCount = _predictionResult!['smoke_count'] ?? 0;
     final framesProcessed = _predictionResult!['frames_processed'] ?? 0;
-    
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: hasBoxes 
-            ? [Colors.green.withOpacity(0.1), Colors.blue.withOpacity(0.1)]
-            : [Colors.grey.withOpacity(0.1), Colors.grey.withOpacity(0.05)],
+          colors:
+              hasBoxes
+                  ? [
+                    Colors.green.withOpacity(0.1),
+                    Colors.blue.withOpacity(0.1),
+                  ]
+                  : [
+                    Colors.grey.withOpacity(0.1),
+                    Colors.grey.withOpacity(0.05),
+                  ],
         ),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: hasBoxes ? Colors.green.withOpacity(0.3) : Colors.grey.withOpacity(0.3),
+          color:
+              hasBoxes
+                  ? Colors.green.withOpacity(0.3)
+                  : Colors.grey.withOpacity(0.3),
           width: 2,
         ),
       ),
@@ -676,9 +714,9 @@ class _PredictScreenState extends State<PredictScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  hasBoxes 
-                    ? '🎥 Video có Bounding Boxes'
-                    : '🎥 Video không có phát hiện',
+                  hasBoxes
+                      ? '🎥 Video có Bounding Boxes'
+                      : '🎥 Video không có phát hiện',
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -688,15 +726,15 @@ class _PredictScreenState extends State<PredictScreen> {
               ),
             ],
           ),
-          
+
           if (hasBoxes) ...[
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: _buildDetectionBadge(
-                    '🔥 Lửa', 
-                    fireCount, 
+                    '🔥 Lửa',
+                    fireCount,
                     Colors.red.withOpacity(0.1),
                     Colors.red,
                   ),
@@ -704,15 +742,15 @@ class _PredictScreenState extends State<PredictScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: _buildDetectionBadge(
-                    '💨 Khói', 
-                    smokeCount, 
+                    '💨 Khói',
+                    smokeCount,
                     Colors.blue.withOpacity(0.1),
                     Colors.blue,
                   ),
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 8),
             Text(
               '📊 $framesProcessed khung hình đã được phân tích',
@@ -722,7 +760,7 @@ class _PredictScreenState extends State<PredictScreen> {
                 fontStyle: FontStyle.italic,
               ),
             ),
-            
+
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(8),
@@ -762,8 +800,13 @@ class _PredictScreenState extends State<PredictScreen> {
       ),
     );
   }
-  
-  Widget _buildDetectionBadge(String label, int count, Color bgColor, Color textColor) {
+
+  Widget _buildDetectionBadge(
+    String label,
+    int count,
+    Color bgColor,
+    Color textColor,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -816,10 +859,7 @@ class _PredictScreenState extends State<PredictScreen> {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.7),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: iconColor.withOpacity(0.3),
-          width: 1.5,
-        ),
+        border: Border.all(color: iconColor.withOpacity(0.3), width: 1.5),
       ),
       child: Row(
         children: [

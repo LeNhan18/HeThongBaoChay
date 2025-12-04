@@ -528,8 +528,6 @@ class DetectionOverlayPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3;
 
-    final textPaint = Paint()..color = Colors.white;
-
     // Draw bounding boxes (this is a simplified version)
     // In a real implementation, you'd need to scale the coordinates
     // from the detection result to match the camera preview size

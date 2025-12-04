@@ -12,9 +12,7 @@ class PredictionService {
       final request = http.MultipartRequest('POST', uri);
 
       // Add file to request
-      request.files.add(
-        await http.MultipartFile.fromPath('file', file.path),
-      );
+      request.files.add(await http.MultipartFile.fromPath('file', file.path));
 
       // Send request
       final streamedResponse = await request.send();
@@ -24,7 +22,7 @@ class PredictionService {
         if (type == 'image') {
           final jsonResponse = json.decode(response.body);
           final summary = jsonResponse['summary'];
-          
+
           // Calculate max confidence
           double maxConf = 0.0;
           if (jsonResponse['detections'] != null) {
@@ -42,12 +40,15 @@ class PredictionService {
         } else {
           // Video analysis returns headers with stats
           final headers = response.headers;
-          final processingTimeStr = headers['x-processing-time']?.replaceAll('s', '') ?? '0';
-          final detectionsCount = int.tryParse(headers['x-detections-total'] ?? '0') ?? 0;
+          final processingTimeStr =
+              headers['x-processing-time']?.replaceAll('s', '') ?? '0';
+          final detectionsCount =
+              int.tryParse(headers['x-detections-total'] ?? '0') ?? 0;
           final fireCount = int.tryParse(headers['x-fire-count'] ?? '0') ?? 0;
           final smokeCount = int.tryParse(headers['x-smoke-count'] ?? '0') ?? 0;
-          final framesProcessed = int.tryParse(headers['x-frames-processed'] ?? '0') ?? 0;
-          
+          final framesProcessed =
+              int.tryParse(headers['x-frames-processed'] ?? '0') ?? 0;
+
           print('🎥 Video Analysis Results:');
           print('   Frames processed: $framesProcessed');
           print('   Total detections: $detectionsCount');
@@ -55,17 +56,21 @@ class PredictionService {
           print('   Smoke detections: $smokeCount');
           print('   Processing time: $processingTimeStr');
           print('   Response size: ${response.bodyBytes.length} bytes');
-          
+
           // Save annotated video to temp file
           final tempDir = await getTemporaryDirectory();
           final timestamp = DateTime.now().millisecondsSinceEpoch;
-          final videoFile = File('${tempDir.path}/annotated_video_$timestamp.mp4');
+          final videoFile = File(
+            '${tempDir.path}/annotated_video_$timestamp.mp4',
+          );
           await videoFile.writeAsBytes(response.bodyBytes);
-          
-          print('📁 Saved annotated video to: ${videoFile.path}');
+
+          print(' Saved annotated video to: ${videoFile.path}');
           final exists = await videoFile.exists();
           final size = exists ? await videoFile.length() : 0;
-          print('✅ Video file exists: $exists, size: ${size / (1024*1024):.2f} MB');
+          print(
+            ' Video file exists: $exists, size: ${(size / (1024 * 1024)).toStringAsFixed(2)} MB',
+          );
 
           return {
             'fire_detected': fireCount > 0,
