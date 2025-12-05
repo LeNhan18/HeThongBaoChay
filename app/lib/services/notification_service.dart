@@ -59,6 +59,8 @@ class NotificationService {
       }
     } catch (e) {
       dev.log('❌ Firebase FCM init error: $e');
+      dev.log('📱 Continuing with local notifications only');
+      // Continue with local notifications only
     }
   }
 

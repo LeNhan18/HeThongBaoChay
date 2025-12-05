@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-// import 'package:firebase_core/firebase_core.dart';
-import 'constants.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'services/notification_service.dart';
 import 'screens/wrapper.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,12 +8,23 @@ import 'package:google_fonts/google_fonts.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // await Firebase.initializeApp(options: firebaseOptions);
-  await NotificationService().init();
+  try {
+    // Initialize Firebase (FREE) - with error handling
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('✅ Firebase initialized successfully');
+
+    // Initialize notification service with Firebase FCM
+    await NotificationService().init();
+    print('✅ Notification service initialized');
+  } catch (e) {
+    print('❌ Firebase initialization error: $e');
+    // Continue without Firebase for basic app functionality
+  }
 
   runApp(const FireAlertApp());
 }
-
 
 class FireAlertApp extends StatelessWidget {
   const FireAlertApp({super.key});
