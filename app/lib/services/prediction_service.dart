@@ -2,17 +2,31 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 import '../constants.dart';
 
 class PredictionService {
-  Future<Map<String, dynamic>> uploadAndPredict(File file, String type) async {
+  Future<Map<String, dynamic>> uploadAndPredict(
+    dynamic file,
+    String type,
+  ) async {
     try {
       final endpoint = type == 'image' ? 'predict_json' : 'analyze_video';
       final uri = Uri.parse('$apiBaseUrl/$endpoint/');
       final request = http.MultipartRequest('POST', uri);
 
       // Add file to request
-      request.files.add(await http.MultipartFile.fromPath('file', file.path));
+      if (kIsWeb && file is XFile) {
+        final bytes = await file.readAsBytes();
+        request.files.add(
+          http.MultipartFile.fromBytes('file', bytes, filename: file.name),
+        );
+      } else if (file is File) {
+        request.files.add(await http.MultipartFile.fromPath('file', file.path));
+      } else {
+        throw Exception('Unsupported file type');
+      }
 
       // Send request
       final streamedResponse = await request.send();

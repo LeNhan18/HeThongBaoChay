@@ -5,7 +5,9 @@ import 'package:glassmorphism/glassmorphism.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import '../services/prediction_service.dart';
 import '../services/notification_service.dart';
 
@@ -20,7 +22,7 @@ class _PredictScreenState extends State<PredictScreen> {
   final PredictionService _predictionService = PredictionService();
   final ImagePicker _picker = ImagePicker();
 
-  File? _selectedFile;
+  dynamic _selectedFile;
   String? _fileType;
   bool _isProcessing = false;
   Map<String, dynamic>? _predictionResult;
@@ -37,7 +39,11 @@ class _PredictScreenState extends State<PredictScreen> {
       final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
       if (image != null) {
         setState(() {
-          _selectedFile = File(image.path);
+          if (kIsWeb) {
+            _selectedFile = image;
+          } else {
+            _selectedFile = File(image.path);
+          }
           _fileType = 'image';
           _predictionResult = null;
           _videoController?.dispose();
@@ -51,6 +57,13 @@ class _PredictScreenState extends State<PredictScreen> {
 
   Future<void> _pickVideo() async {
     try {
+      if (kIsWeb) {
+        _showError(
+          'Chức năng video chưa hỗ trợ trên web browser. Vui lòng sử dụng ứng dụng mobile.',
+        );
+        return;
+      }
+
       final XFile? video = await _picker.pickVideo(source: ImageSource.gallery);
       if (video != null) {
         final file = File(video.path);

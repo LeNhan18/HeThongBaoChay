@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import '../models/detection_result.dart';
 import '../constants.dart';
 
@@ -20,6 +21,10 @@ class CameraDetectionService {
     double confidence = 0.25,
   }) async {
     try {
+      if (kIsWeb) {
+        throw Exception('Camera detection is not supported on web platform');
+      }
+
       final file = File(imagePath);
       if (!await file.exists()) {
         throw Exception('Image file not found: $imagePath');
