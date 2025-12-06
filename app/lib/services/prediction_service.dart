@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import '../constants.dart';
 
@@ -12,12 +11,12 @@ class PredictionService {
     String type,
   ) async {
     try {
-      final endpoint = type == 'image' ? 'predict_json' : 'analyze_video';
+      final endpoint = type == 'image' ? 'predict' : 'analyze_video';
       final uri = Uri.parse('$apiBaseUrl/$endpoint/');
       final request = http.MultipartRequest('POST', uri);
 
-      // Add file to request
-      if (kIsWeb && file is XFile) {
+      // Add file to request - Handle XFile for both web and mobile platforms
+      if (file is XFile) {
         final bytes = await file.readAsBytes();
         request.files.add(
           http.MultipartFile.fromBytes('file', bytes, filename: file.name),
@@ -25,7 +24,7 @@ class PredictionService {
       } else if (file is File) {
         request.files.add(await http.MultipartFile.fromPath('file', file.path));
       } else {
-        throw Exception('Unsupported file type');
+        throw Exception('Unsupported file type: ${file.runtimeType}');
       }
 
       // Send request
@@ -34,22 +33,32 @@ class PredictionService {
 
       if (response.statusCode == 200) {
         if (type == 'image') {
-          final jsonResponse = json.decode(response.body);
-          final summary = jsonResponse['summary'];
+          // Image prediction returns JPEG with detection info in headers
+          final headers = response.headers;
+          final detectionsCount =
+              int.tryParse(headers['x-detections-count'] ?? '0') ?? 0;
+          final fireCount = int.tryParse(headers['x-fire-count'] ?? '0') ?? 0;
+          final smokeCount = int.tryParse(headers['x-smoke-count'] ?? '0') ?? 0;
 
-          // Calculate max confidence
-          double maxConf = 0.0;
-          if (jsonResponse['detections'] != null) {
-            for (var d in jsonResponse['detections']) {
-              if (d['confidence'] > maxConf) maxConf = d['confidence'];
-            }
-          }
+          // Save annotated image to temp file
+          final tempDir = await getTemporaryDirectory();
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final imageFile = File(
+            '${tempDir.path}/annotated_image_$timestamp.jpg',
+          );
+          await imageFile.writeAsBytes(response.bodyBytes);
 
           return {
-            'fire_detected': summary['fire'] > 0,
-            'confidence': maxConf,
-            'detections': summary['total'],
+            'fire_detected': fireCount > 0,
+            'smoke_detected': smokeCount > 0,
+            'confidence':
+                fireCount > 0 || smokeCount > 0 ? 0.85 : 0.0, // Estimated
+            'detections': detectionsCount,
+            'fire_count': fireCount,
+            'smoke_count': smokeCount,
             'processing_time': 0.5, // Estimated
+            'result_image_path': imageFile.path,
+            'has_bounding_boxes': detectionsCount > 0,
           };
         } else {
           // Video analysis returns headers with stats

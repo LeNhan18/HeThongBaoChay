@@ -6,10 +6,12 @@ import 'package:shimmer/shimmer.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/foundation.dart';
-import 'dart:io';
-import 'dart:typed_data';
 import '../services/prediction_service.dart';
 import '../services/notification_service.dart';
+import '../utils/platform_utils.dart' as platform_utils;
+
+// Platform-specific imports
+import 'dart:io' as io if (dart.library.io) 'dart:io';
 
 class PredictScreen extends StatefulWidget {
   const PredictScreen({super.key});
@@ -39,11 +41,8 @@ class _PredictScreenState extends State<PredictScreen> {
       final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
       if (image != null) {
         setState(() {
-          if (kIsWeb) {
-            _selectedFile = image;
-          } else {
-            _selectedFile = File(image.path);
-          }
+          _selectedFile =
+              image; // Always use XFile for cross-platform compatibility
           _fileType = 'image';
           _predictionResult = null;
           _videoController?.dispose();
@@ -59,28 +58,82 @@ class _PredictScreenState extends State<PredictScreen> {
     try {
       if (kIsWeb) {
         _showError(
-          'Chức năng video chưa hỗ trợ trên web browser. Vui lòng sử dụng ứng dụng mobile.',
+          'Chức năng video chưa hỗ trợ đầy đủ trên web browser. Vui lòng sử dụng ứng dụng mobile để có trải nghiệm tốt nhất.',
         );
         return;
       }
 
       final XFile? video = await _picker.pickVideo(source: ImageSource.gallery);
       if (video != null) {
-        final file = File(video.path);
         setState(() {
-          _selectedFile = file;
+          _selectedFile = video;
           _fileType = 'video';
           _predictionResult = null;
         });
 
         _videoController?.dispose();
-        _videoController = VideoPlayerController.file(file)
-          ..initialize().then((_) {
-            setState(() {});
-          });
+        if (kIsWeb) {
+          // On web, create a blob URL for the video
+          final bytes = await video.readAsBytes();
+          final url = platform_utils.createImageUrl(bytes);
+          _videoController = VideoPlayerController.networkUrl(Uri.parse(url));
+        } else {
+          _videoController = VideoPlayerController.file(io.File(video.path));
+        }
+
+        _videoController!.initialize().then((_) {
+          setState(() {});
+        });
       }
     } catch (e) {
       _showError('Lỗi chọn video: $e');
+    }
+  }
+
+  Map<String, dynamic> _createDemoResult() {
+    // Create realistic demo data for web testing
+    final random = DateTime.now().millisecond;
+    final hasFireOrSmoke = random % 3 == 0; // 33% chance of detection
+
+    if (_fileType == 'image') {
+      return {
+        'fire_detected': hasFireOrSmoke,
+        'confidence':
+            hasFireOrSmoke
+                ? 0.85 + (random % 15) / 100
+                : 0.1 + (random % 20) / 100,
+        'detections':
+            hasFireOrSmoke
+                ? [
+                  {
+                    'class': random % 2 == 0 ? 'fire' : 'smoke',
+                    'confidence': 0.87,
+                    'bbox': [100, 100, 200, 200],
+                  },
+                ]
+                : [],
+        'summary': {
+          'fire': hasFireOrSmoke && random % 2 == 0 ? 1 : 0,
+          'smoke': hasFireOrSmoke && random % 2 == 1 ? 1 : 0,
+        },
+      };
+    } else {
+      return {
+        'fire_detected': hasFireOrSmoke,
+        'confidence':
+            hasFireOrSmoke
+                ? 0.82 + (random % 18) / 100
+                : 0.05 + (random % 25) / 100,
+        'detections': hasFireOrSmoke ? 3 + (random % 5) : 0,
+        'fire_count': hasFireOrSmoke ? 1 + (random % 3) : 0,
+        'smoke_count': hasFireOrSmoke ? 1 + (random % 2) : 0,
+        'has_bounding_boxes': hasFireOrSmoke,
+        'summary': {
+          'total_frames': 120,
+          'fire_frames': hasFireOrSmoke ? 15 + (random % 10) : 0,
+          'smoke_frames': hasFireOrSmoke ? 8 + (random % 8) : 0,
+        },
+      };
     }
   }
 
@@ -95,10 +148,20 @@ class _PredictScreenState extends State<PredictScreen> {
     });
 
     try {
-      final result = await _predictionService.uploadAndPredict(
-        _selectedFile!,
-        _fileType!,
-      );
+      Map<String, dynamic> result;
+
+      if (kIsWeb) {
+        // Demo mode for web - simulate API response
+        await Future.delayed(
+          const Duration(seconds: 2),
+        ); // Simulate processing time
+        result = _createDemoResult();
+      } else {
+        result = await _predictionService.uploadAndPredict(
+          _selectedFile!,
+          _fileType!,
+        );
+      }
 
       setState(() {
         _predictionResult = result;
@@ -121,12 +184,13 @@ class _PredictScreenState extends State<PredictScreen> {
       });
 
       // If video result is available, play it with bounding boxes
-      if (_predictionResult != null &&
+      if (!kIsWeb &&
+          _predictionResult != null &&
           _predictionResult!.containsKey('result_video_path')) {
         final resultVideoPath = _predictionResult!['result_video_path'];
         debugPrint('🎥 Result video path: $resultVideoPath');
 
-        final videoFile = File(resultVideoPath);
+        final videoFile = io.File(resultVideoPath);
         final exists = await videoFile.exists();
         final size = exists ? await videoFile.length() : 0;
         debugPrint(
@@ -314,7 +378,42 @@ class _PredictScreenState extends State<PredictScreen> {
                   borderRadius: BorderRadius.circular(18),
                   child:
                       _fileType == 'image'
-                          ? Image.file(_selectedFile!, fit: BoxFit.contain)
+                          ? (kIsWeb
+                              ? Image.network(
+                                (_selectedFile as XFile).path,
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return FutureBuilder<Uint8List>(
+                                    future:
+                                        (_selectedFile as XFile).readAsBytes(),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.hasData) {
+                                        return Image.memory(
+                                          snapshot.data!,
+                                          fit: BoxFit.contain,
+                                        );
+                                      }
+                                      return const Center(
+                                        child: CircularProgressIndicator(),
+                                      );
+                                    },
+                                  );
+                                },
+                              )
+                              : FutureBuilder<Uint8List>(
+                                future: (_selectedFile as XFile).readAsBytes(),
+                                builder: (context, snapshot) {
+                                  if (snapshot.hasData) {
+                                    return Image.memory(
+                                      snapshot.data!,
+                                      fit: BoxFit.contain,
+                                    );
+                                  }
+                                  return const Center(
+                                    child: CircularProgressIndicator(),
+                                  );
+                                },
+                              ))
                           : (_videoController != null &&
                               _videoController!.value.isInitialized)
                           ? AspectRatio(
@@ -332,6 +431,79 @@ class _PredictScreenState extends State<PredictScreen> {
               ).animate().fadeIn(duration: 400.ms).scale(delay: 100.ms),
 
               const SizedBox(height: 16),
+
+              // Show annotated image result with bounding boxes
+              if (_fileType == 'image' &&
+                  _predictionResult != null &&
+                  _predictionResult!.containsKey('result_image_path') &&
+                  _predictionResult!['has_bounding_boxes'] == true)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.orange.withOpacity(0.8),
+                                Colors.red.withOpacity(0.8),
+                              ],
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.visibility,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'KẾT QUẢ PHÁT HIỆN (CÓ BOUNDING BOX)',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Image.file(
+                          io.File(_predictionResult!['result_image_path']),
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              height: 200,
+                              child: Center(
+                                child: Text(
+                                  'Không thể hiển thị ảnh kết quả',
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ).animate().fadeIn(duration: 800.ms).scale(delay: 200.ms),
 
               // Video result indicator
               if (_fileType == 'video' &&
@@ -478,6 +650,31 @@ class _PredictScreenState extends State<PredictScreen> {
                   ),
                 ),
               ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2),
+
+              const SizedBox(height: 16),
+
+              // Test Notification Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTestButton(
+                      'Test Báo Cháy',
+                      Icons.local_fire_department,
+                      Colors.red,
+                      () => _testFireNotification(),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildTestButton(
+                      'Test Báo Khói',
+                      Icons.smoke_free,
+                      Colors.grey,
+                      () => _testSmokeNotification(),
+                    ),
+                  ),
+                ],
+              ),
             ],
 
             // Results Area
@@ -906,5 +1103,76 @@ class _PredictScreenState extends State<PredictScreen> {
         ],
       ),
     ).animate().fadeIn(delay: 100.ms).slideX(begin: 0.2);
+  }
+
+  // Test notification methods
+  Future<void> _testFireNotification() async {
+    try {
+      await NotificationService().sendFireAlert(
+        location: 'Khu vực test',
+        confidence: 0.95,
+      );
+      _showSuccess('✅ Đã gửi thông báo test cháy!');
+    } catch (e) {
+      _showError('❌ Lỗi gửi thông báo: $e');
+    }
+  }
+
+  Future<void> _testSmokeNotification() async {
+    try {
+      await NotificationService().sendSmokeAlert(
+        location: 'Khu vực test',
+        confidence: 0.85,
+      );
+      _showSuccess('✅ Đã gửi thông báo test khói!');
+    } catch (e) {
+      _showError('❌ Lỗi gửi thông báo: $e');
+    }
+  }
+
+  Widget _buildTestButton(
+    String text,
+    IconData icon,
+    Color color,
+    VoidCallback onPressed,
+  ) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.7), color.withOpacity(0.9)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: Colors.white, size: 18),
+              const SizedBox(width: 6),
+              Text(
+                text,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

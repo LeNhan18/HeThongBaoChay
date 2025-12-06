@@ -1,8 +1,8 @@
 // import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
-const String apiBaseUrl = 'http://localhost:8000';
-const String API_BASE_URL = 'http://localhost:8000';
+const String apiBaseUrl = 'http://192.168.2.29:8000';
+const String API_BASE_URL = 'http://192.168.2.29:8000';
 
 // App Colors
 const Color kPrimaryColor = Colors.deepOrange;
