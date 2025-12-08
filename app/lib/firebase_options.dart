@@ -70,7 +70,6 @@ class DefaultFirebaseOptions {
     storageBucket: 'hethongbaochay-56774.firebasestorage.app',
     iosBundleId: 'com.example.app',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyD-rGTIQs-BVDtzUgfFT1jFhLdamNRfaSI',
     appId: '1:323150359622:ios:0ba081be5ca07cb7c2ae47c2ae47',

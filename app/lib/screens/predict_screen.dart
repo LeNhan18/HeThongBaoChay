@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
-import 'package:glassmorphism/glassmorphism.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -197,7 +196,7 @@ class _PredictScreenState extends State<PredictScreen> {
           _predictionResult != null &&
           _predictionResult!.containsKey('result_video_path')) {
         final resultVideoPath = _predictionResult!['result_video_path'];
-        debugPrint('🎥 Result video path: $resultVideoPath');
+        debugPrint(' Result video path: $resultVideoPath');
 
         final videoFile = io.File(resultVideoPath);
         final exists = await videoFile.exists();
@@ -211,7 +210,7 @@ class _PredictScreenState extends State<PredictScreen> {
           _videoController = VideoPlayerController.file(videoFile)
             ..initialize()
                 .then((_) {
-                  debugPrint('✅ Result video with bounding boxes initialized');
+                  debugPrint(' Result video with bounding boxes initialized');
                   setState(() {});
 
                   // Show notification about bounding boxes
@@ -231,7 +230,7 @@ class _PredictScreenState extends State<PredictScreen> {
                   _videoController!.play();
                 })
                 .catchError((error) {
-                  debugPrint('❌ Error initializing result video: $error');
+                  debugPrint(' Error initializing result video: $error');
                   _showError('Lỗi khởi tạo video kết quả: $error');
                 });
         } else {
@@ -277,145 +276,222 @@ class _PredictScreenState extends State<PredictScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.deepOrange.shade50,
-            Colors.orange.shade50,
-            Colors.amber.shade50,
-          ],
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+
+    return Scaffold(
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF667eea),
+              Color(0xFF764ba2),
+              Color(0xFFf093fb),
+              Color(0xFFf5576c),
+              Color(0xFF4facfe),
+            ],
+            stops: [0.0, 0.25, 0.5, 0.75, 1.0],
+          ),
         ),
-      ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Title with icon
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: isTablet ? 40.0 : 16.0,
+              vertical: 20.0,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Title with icon
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.white.withOpacity(0.25),
+                                Colors.white.withOpacity(0.1),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: ShaderMask(
+                            shaderCallback:
+                                (bounds) => LinearGradient(
+                                  colors: [Colors.white, Colors.white70],
+                                ).createShader(bounds),
+                            child: const Icon(
+                              Icons.smart_toy_outlined,
+                              color: Colors.white,
+                              size: 32,
+                            ),
+                          ),
+                        )
+                        .animate()
+                        .scale(duration: 800.ms)
+                        .shimmer(duration: 1500.ms),
+                    const SizedBox(width: 16),
+                    ShaderMask(
+                          shaderCallback:
+                              (bounds) => LinearGradient(
+                                colors: [
+                                  Colors.white,
+                                  Colors.white.withOpacity(0.8),
+                                  Colors.white70,
+                                ],
+                              ).createShader(bounds),
+                          child: Text(
+                            '🔥 AI Fire Detection',
+                            style: GoogleFonts.orbitron(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        )
+                        .animate()
+                        .fadeIn(duration: 800.ms)
+                        .slideX()
+                        .shimmer(delay: 1000.ms, duration: 2000.ms),
+                  ],
+                ),
+
+                SizedBox(height: isTablet ? 32 : 24),
+
+                // View Selection Tabs
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Colors.deepOrange, Colors.orange],
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withOpacity(0.25),
+                        Colors.white.withOpacity(0.1),
+                      ],
                     ),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.3),
+                      width: 1,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.deepOrange.withOpacity(0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 20,
+                        offset: Offset(0, 8),
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    Icons.psychology,
-                    color: Colors.white,
-                    size: 28,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _buildViewTab('upload', 'Upload', Colors.blue),
+                      ),
+                      Expanded(
+                        child: _buildViewTab(
+                          'streaming',
+                          'ESP32 Streaming',
+                          Colors.orange,
+                        ),
+                      ),
+                    ],
                   ),
-                ).animate().scale(duration: 600.ms),
-                const SizedBox(width: 16),
-                Text(
-                  'AI Dự Đoán Cháy',
-                  style: GoogleFonts.poppins(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.deepOrange[800],
-                  ),
-                ).animate().fadeIn(duration: 600.ms).slideX(),
-              ],
-            ),
+                ),
 
-            const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-            // View Selection Tabs
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
+                // Content based on selected view
+                if (_currentView == 'upload')
+                  UploadView(
+                    onPickImage: _pickImage,
+                    onPickVideo: _pickVideo,
+                    onPredict: _predict,
+                    isProcessing: _isProcessing,
                   ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildViewTab('upload', 'Upload', Colors.blue),
+                if (_currentView == 'streaming')
+                  StreamingView(
+                    isProcessing: _isProcessing,
+                    onFireAlert: _showFireAlert,
+                    onError: _showError,
+                    onSuccess: _showSuccess,
+                    predictionResult: _predictionResult,
                   ),
-                  Expanded(
-                    child: _buildViewTab(
-                      'streaming',
-                      'ESP32 Streaming',
-                      Colors.orange,
+
+                // Show preview area only for upload view
+                if (_currentView == 'upload' && _selectedFile != null) ...[
+                  const SizedBox(height: 24),
+                  Container(
+                    width: double.infinity,
+                    height: 380,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withOpacity(0.2),
+                          Colors.white.withOpacity(0.05),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.3),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 25,
+                          offset: Offset(0, 12),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Content based on selected view
-            if (_currentView == 'upload')
-              UploadView(
-                onPickImage: _pickImage,
-                onPickVideo: _pickVideo,
-                onPredict: _predict,
-                isProcessing: _isProcessing,
-              ),
-            if (_currentView == 'streaming')
-              StreamingView(
-                isProcessing: _isProcessing,
-                onFireAlert: _showFireAlert,
-                onError: _showError,
-                onSuccess: _showSuccess,
-              ),
-
-            // Show preview area only for upload view
-            if (_currentView == 'upload' && _selectedFile != null) ...[
-              const SizedBox(height: 24),
-              GlassmorphicContainer(
-                width: double.infinity,
-                height: 360,
-                borderRadius: 20,
-                blur: 20,
-                alignment: Alignment.center,
-                border: 2,
-                linearGradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withOpacity(0.2),
-                    Colors.white.withOpacity(0.05),
-                  ],
-                ),
-                borderGradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withOpacity(0.5),
-                    Colors.white.withOpacity(0.2),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child:
-                      _fileType == 'image'
-                          ? (kIsWeb
-                              ? Image.network(
-                                (_selectedFile as XFile).path,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return FutureBuilder<Uint8List>(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child:
+                          _fileType == 'image'
+                              ? (kIsWeb
+                                  ? Image.network(
+                                    (_selectedFile as XFile).path,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return FutureBuilder<Uint8List>(
+                                        future:
+                                            (_selectedFile as XFile)
+                                                .readAsBytes(),
+                                        builder: (context, snapshot) {
+                                          if (snapshot.hasData) {
+                                            return Image.memory(
+                                              snapshot.data!,
+                                              fit: BoxFit.contain,
+                                            );
+                                          }
+                                          return const Center(
+                                            child: CircularProgressIndicator(),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  )
+                                  : FutureBuilder<Uint8List>(
                                     future:
                                         (_selectedFile as XFile).readAsBytes(),
                                     builder: (context, snapshot) {
@@ -429,437 +505,436 @@ class _PredictScreenState extends State<PredictScreen> {
                                         child: CircularProgressIndicator(),
                                       );
                                     },
-                                  );
-                                },
+                                  ))
+                              : (_videoController != null &&
+                                  _videoController!.value.isInitialized)
+                              ? AspectRatio(
+                                aspectRatio:
+                                    _videoController!.value.aspectRatio,
+                                child: VideoPlayer(_videoController!),
                               )
-                              : FutureBuilder<Uint8List>(
-                                future: (_selectedFile as XFile).readAsBytes(),
-                                builder: (context, snapshot) {
-                                  if (snapshot.hasData) {
-                                    return Image.memory(
-                                      snapshot.data!,
-                                      fit: BoxFit.contain,
-                                    );
-                                  }
-                                  return const Center(
-                                    child: CircularProgressIndicator(),
-                                  );
-                                },
-                              ))
-                          : (_videoController != null &&
-                              _videoController!.value.isInitialized)
-                          ? AspectRatio(
-                            aspectRatio: _videoController!.value.aspectRatio,
-                            child: VideoPlayer(_videoController!),
-                          )
-                          : Center(
-                            child: Shimmer.fromColors(
-                              baseColor: Colors.grey[300]!,
-                              highlightColor: Colors.grey[100]!,
-                              child: const Icon(Icons.video_library, size: 64),
-                            ),
-                          ),
-                ),
-              ).animate().fadeIn(duration: 400.ms).scale(delay: 100.ms),
-
-              const SizedBox(height: 16),
-
-              // Show annotated image result with bounding boxes
-              if (_fileType == 'image' &&
-                  _predictionResult != null &&
-                  _predictionResult!.containsKey('result_image_path') &&
-                  _predictionResult!['has_bounding_boxes'] == true)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Column(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.orange.withOpacity(0.8),
-                                Colors.red.withOpacity(0.8),
-                              ],
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.visibility,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'KẾT QUẢ PHÁT HIỆN (CÓ BOUNDING BOX)',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Image.file(
-                          io.File(_predictionResult!['result_image_path']),
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              height: 200,
-                              child: Center(
-                                child: Text(
-                                  'Không thể hiển thị ảnh kết quả',
-                                  style: GoogleFonts.poppins(
-                                    color: Colors.grey[600],
+                              : Center(
+                                child: Shimmer.fromColors(
+                                  baseColor: Colors.grey[300]!,
+                                  highlightColor: Colors.grey[100]!,
+                                  child: const Icon(
+                                    Icons.video_library,
+                                    size: 64,
                                   ),
                                 ),
                               ),
-                            );
-                          },
-                        ),
-                      ],
                     ),
-                  ),
-                ).animate().fadeIn(duration: 800.ms).scale(delay: 200.ms),
+                  ).animate().fadeIn(duration: 400.ms).scale(delay: 100.ms),
 
-              // Video result indicator
-              if (_fileType == 'video' &&
-                  _predictionResult != null &&
-                  _predictionResult!.containsKey('has_bounding_boxes') &&
-                  _predictionResult!['has_bounding_boxes'] == true)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.green.withOpacity(0.1),
-                        Colors.blue.withOpacity(0.1),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.visibility,
-                        color: Colors.green[600],
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '🎯 Video này hiển thị bounding boxes với nhãn tiếng Việt',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.green[700],
+                  const SizedBox(height: 16),
+
+                  // Show annotated image result with bounding boxes
+                  if (_fileType == 'image' &&
+                      _predictionResult != null &&
+                      _predictionResult!.containsKey('result_image_path') &&
+                      _predictionResult!['has_bounding_boxes'] == true)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                ).animate().fadeIn(duration: 600.ms).slideX(begin: 0.3),
-
-              // Video controls
-              if (_fileType == 'video' &&
-                  _videoController != null &&
-                  _videoController!.value.isInitialized)
-                Center(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Colors.black87, Colors.black54],
-                      ),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: IconButton(
-                      iconSize: 32,
-                      icon: Icon(
-                        _videoController!.value.isPlaying
-                            ? Icons.pause_circle_filled
-                            : Icons.play_circle_filled,
-                        color: Colors.white,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _videoController!.value.isPlaying
-                              ? _videoController!.pause()
-                              : _videoController!.play();
-                        });
-                      },
-                    ),
-                  ).animate().scale(delay: 200.ms),
-                ),
-
-              const SizedBox(height: 20),
-
-              // Predict button
-              Container(
-                height: 60,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors:
-                        _isProcessing
-                            ? [Colors.grey[400]!, Colors.grey[500]!]
-                            : [Colors.deepOrange, Colors.orange[700]!],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.deepOrange.withOpacity(0.4),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: _isProcessing ? null : _predict,
-                    borderRadius: BorderRadius.circular(16),
-                    child: Center(
-                      child:
-                          _isProcessing
-                              ? Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 3,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Text(
-                                    'Đang phân tích...',
-                                    style: GoogleFonts.poppins(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              )
-                              : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.orange.withOpacity(0.8),
+                                    Colors.red.withOpacity(0.8),
+                                  ],
+                                ),
+                              ),
+                              child: Row(
                                 children: [
                                   const Icon(
-                                    Icons.auto_awesome,
+                                    Icons.visibility,
                                     color: Colors.white,
-                                    size: 24,
+                                    size: 16,
                                   ),
-                                  const SizedBox(width: 12),
+                                  const SizedBox(width: 8),
                                   Text(
-                                    'Phân Tích Ngay',
+                                    'KẾT QUẢ PHÁT HIỆN (CÓ BOUNDING BOX)',
                                     style: GoogleFonts.poppins(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
                                       color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ],
                               ),
-                    ),
-                  ),
-                ),
-              ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2),
+                            ),
+                            Image.file(
+                              io.File(_predictionResult!['result_image_path']),
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  height: 200,
+                                  child: Center(
+                                    child: Text(
+                                      'Không thể hiển thị ảnh kết quả',
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ).animate().fadeIn(duration: 800.ms).scale(delay: 200.ms),
 
-              const SizedBox(height: 16),
+                  // Video result indicator
+                  if (_fileType == 'video' &&
+                      _predictionResult != null &&
+                      _predictionResult!.containsKey('has_bounding_boxes') &&
+                      _predictionResult!['has_bounding_boxes'] == true)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.green.withOpacity(0.1),
+                            Colors.blue.withOpacity(0.1),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.green.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.visibility,
+                            color: Colors.green[600],
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              ' Video này hiển thị bounding boxes với nhãn tiếng Việt',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.green[700],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ).animate().fadeIn(duration: 600.ms).slideX(begin: 0.3),
 
-              // Test Notification Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildTestButton(
-                      'Test Báo Cháy',
-                      Icons.local_fire_department,
-                      Colors.red,
-                      () => _testFireNotification(),
+                  // Video controls
+                  if (_fileType == 'video' &&
+                      _videoController != null &&
+                      _videoController!.value.isInitialized)
+                    Center(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Colors.black87, Colors.black54],
+                          ),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: IconButton(
+                          iconSize: 32,
+                          icon: Icon(
+                            _videoController!.value.isPlaying
+                                ? Icons.pause_circle_filled
+                                : Icons.play_circle_filled,
+                            color: Colors.white,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _videoController!.value.isPlaying
+                                  ? _videoController!.pause()
+                                  : _videoController!.play();
+                            });
+                          },
+                        ),
+                      ).animate().scale(delay: 200.ms),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildTestButton(
-                      'Test Báo Khói',
-                      Icons.smoke_free,
-                      Colors.grey,
-                      () => _testSmokeNotification(),
-                    ),
-                  ),
-                ],
-              ),
-            ],
 
-            // Results Area
-            if (_predictionResult != null) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withOpacity(0.9),
-                      Colors.white.withOpacity(0.7),
+                  const SizedBox(height: 20),
+
+                  // Predict button
+                  Container(
+                    height: 60,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors:
+                            _isProcessing
+                                ? [Colors.grey[400]!, Colors.grey[500]!]
+                                : [Colors.deepOrange, Colors.orange[700]!],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.deepOrange.withOpacity(0.4),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _isProcessing ? null : _predict,
+                        borderRadius: BorderRadius.circular(16),
+                        child: Center(
+                          child:
+                              _isProcessing
+                                  ? Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 3,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Text(
+                                        'Đang phân tích...',
+                                        style: GoogleFonts.poppins(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                  : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.auto_awesome,
+                                        color: Colors.white,
+                                        size: 24,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Phân Tích Ngay',
+                                        style: GoogleFonts.poppins(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                        ),
+                      ),
+                    ),
+                  ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2),
+
+                  const SizedBox(height: 16),
+
+                  // Test Notification Buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildTestButton(
+                          'Test Báo Cháy',
+                          Icons.local_fire_department,
+                          Colors.red,
+                          () => _testFireNotification(),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildTestButton(
+                          'Test Báo Khói',
+                          Icons.smoke_free,
+                          Colors.grey,
+                          () => _testSmokeNotification(),
+                        ),
+                      ),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.6),
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [Colors.green[400]!, Colors.green[600]!],
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.analytics,
-                            color: Colors.white,
-                            size: 24,
-                          ),
+                ],
+
+                // Results Area
+                if (_predictionResult != null) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withOpacity(0.9),
+                          Colors.white.withOpacity(0.7),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.6),
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
                         ),
-                        const SizedBox(width: 12),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.green[400]!,
+                                    Colors.green[600]!,
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.analytics,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Kết Quả Phân Tích',
+                              style: GoogleFonts.poppins(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+
+                        if (_predictionResult!.containsKey('fire_detected'))
+                          _buildModernResultItem(
+                            icon: Icons.local_fire_department,
+                            label: 'Phát hiện cháy',
+                            value:
+                                _predictionResult!['fire_detected']
+                                    ? 'CÓ'
+                                    : 'KHÔNG',
+                            valueColor:
+                                _predictionResult!['fire_detected']
+                                    ? Colors.red
+                                    : Colors.green,
+                            iconColor:
+                                _predictionResult!['fire_detected']
+                                    ? Colors.red
+                                    : Colors.green,
+                          ),
+
+                        if (_predictionResult!.containsKey('confidence'))
+                          _buildModernResultItem(
+                            icon: Icons.speed,
+                            label: 'Độ tin cậy',
+                            value:
+                                '${(_predictionResult!['confidence'] * 100).toStringAsFixed(1)}%',
+                            valueColor: Colors.blue[700]!,
+                            iconColor: Colors.blue,
+                          ),
+
+                        if (_predictionResult!.containsKey('detections'))
+                          _buildModernResultItem(
+                            icon: Icons.category,
+                            label: 'Vật thể phát hiện',
+                            value: '${_predictionResult!['detections']}',
+                            valueColor: Colors.orange[700]!,
+                            iconColor: Colors.orange,
+                          ),
+
+                        // Bounding Box Information for Video
+                        if (_fileType == 'video' &&
+                            _predictionResult!.containsKey(
+                              'has_bounding_boxes',
+                            ))
+                          _buildBoundingBoxInfo(),
+
+                        if (_predictionResult!.containsKey('processing_time'))
+                          _buildModernResultItem(
+                            icon: Icons.timer,
+                            label: 'Thời gian xử lý',
+                            value:
+                                '${_predictionResult!['processing_time'].toStringAsFixed(2)}s',
+                            valueColor: Colors.purple[700]!,
+                            iconColor: Colors.purple,
+                          ),
+                      ],
+                    ),
+                  ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.3),
+                ],
+
+                // Empty state
+                if (_selectedFile == null)
+                  Container(
+                    height: 300,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.deepOrange.withOpacity(0.3),
+                        width: 2,
+                        style: BorderStyle.solid,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                              Icons.cloud_upload_outlined,
+                              size: 80,
+                              color: Colors.deepOrange.withOpacity(0.4),
+                            )
+                            .animate(
+                              onPlay: (controller) => controller.repeat(),
+                            )
+                            .shimmer(duration: 2000.ms),
+                        const SizedBox(height: 16),
                         Text(
-                          'Kết Quả Phân Tích',
+                          'Chọn ảnh hoặc video\nđể bắt đầu phân tích',
+                          textAlign: TextAlign.center,
                           style: GoogleFonts.poppins(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                            height: 1.5,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
-
-                    if (_predictionResult!.containsKey('fire_detected'))
-                      _buildModernResultItem(
-                        icon: Icons.local_fire_department,
-                        label: 'Phát hiện cháy',
-                        value:
-                            _predictionResult!['fire_detected']
-                                ? 'CÓ'
-                                : 'KHÔNG',
-                        valueColor:
-                            _predictionResult!['fire_detected']
-                                ? Colors.red
-                                : Colors.green,
-                        iconColor:
-                            _predictionResult!['fire_detected']
-                                ? Colors.red
-                                : Colors.green,
-                      ),
-
-                    if (_predictionResult!.containsKey('confidence'))
-                      _buildModernResultItem(
-                        icon: Icons.speed,
-                        label: 'Độ tin cậy',
-                        value:
-                            '${(_predictionResult!['confidence'] * 100).toStringAsFixed(1)}%',
-                        valueColor: Colors.blue[700]!,
-                        iconColor: Colors.blue,
-                      ),
-
-                    if (_predictionResult!.containsKey('detections'))
-                      _buildModernResultItem(
-                        icon: Icons.category,
-                        label: 'Vật thể phát hiện',
-                        value: '${_predictionResult!['detections']}',
-                        valueColor: Colors.orange[700]!,
-                        iconColor: Colors.orange,
-                      ),
-
-                    // Bounding Box Information for Video
-                    if (_fileType == 'video' &&
-                        _predictionResult!.containsKey('has_bounding_boxes'))
-                      _buildBoundingBoxInfo(),
-
-                    if (_predictionResult!.containsKey('processing_time'))
-                      _buildModernResultItem(
-                        icon: Icons.timer,
-                        label: 'Thời gian xử lý',
-                        value:
-                            '${_predictionResult!['processing_time'].toStringAsFixed(2)}s',
-                        valueColor: Colors.purple[700]!,
-                        iconColor: Colors.purple,
-                      ),
-                  ],
-                ),
-              ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.3),
-            ],
-
-            // Empty state
-            if (_selectedFile == null)
-              Container(
-                height: 300,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.deepOrange.withOpacity(0.3),
-                    width: 2,
-                    style: BorderStyle.solid,
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                          Icons.cloud_upload_outlined,
-                          size: 80,
-                          color: Colors.deepOrange.withOpacity(0.4),
-                        )
-                        .animate(onPlay: (controller) => controller.repeat())
-                        .shimmer(duration: 2000.ms),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Chọn ảnh hoặc video\nđể bắt đầu phân tích',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                        height: 1.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ).animate().fadeIn(duration: 800.ms),
-          ],
+                  ).animate().fadeIn(duration: 800.ms),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -877,7 +952,7 @@ class _PredictScreenState extends State<PredictScreen> {
                 Icon(Icons.warning, color: Colors.red, size: 32),
                 SizedBox(width: 12),
                 Text(
-                  '🚨 CẢNH BÁO CHÁY!',
+                  ' CẢNH BÁO CHÁY!',
                   style: TextStyle(color: Colors.red[800]),
                 ),
               ],
@@ -886,14 +961,14 @@ class _PredictScreenState extends State<PredictScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('📍 Vị trí: ${alertData['location']}'),
+                Text(' Vị trí: ${alertData['location']}'),
                 Text(
-                  '🎯 Độ tin cậy: ${(alertData['confidence'] * 100).toInt()}%',
+                  ' Độ tin cậy: ${(alertData['confidence'] * 100).toInt()}%',
                 ),
                 Text(
-                  '📅 Thời gian: ${DateTime.now().toString().substring(0, 19)}',
+                  ' Thời gian: ${DateTime.now().toString().substring(0, 19)}',
                 ),
-                Text('📷 Thiết bị: ${alertData['device_name']}'),
+                Text(' Thiết bị: ${alertData['device_name']}'),
               ],
             ),
             actions: [
@@ -951,8 +1026,8 @@ class _PredictScreenState extends State<PredictScreen> {
               Expanded(
                 child: Text(
                   hasBoxes
-                      ? '🎥 Video có Bounding Boxes'
-                      : '🎥 Video không có phát hiện',
+                      ? ' Video có Bounding Boxes'
+                      : ' Video không có phát hiện',
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -989,7 +1064,7 @@ class _PredictScreenState extends State<PredictScreen> {
 
             const SizedBox(height: 8),
             Text(
-              '📊 $framesProcessed khung hình đã được phân tích',
+              ' $framesProcessed khung hình đã được phân tích',
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 color: Colors.grey[600],
@@ -1210,26 +1285,60 @@ class _PredictScreenState extends State<PredictScreen> {
           _currentView = viewId;
         });
       },
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        padding: EdgeInsets.symmetric(vertical: 14, horizontal: 20),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.2) : Colors.transparent,
+          gradient:
+              isSelected
+                  ? LinearGradient(
+                    colors: [
+                      Colors.white.withOpacity(0.3),
+                      Colors.white.withOpacity(0.1),
+                    ],
+                  )
+                  : null,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? color : Colors.transparent,
-            width: 2,
-          ),
+          border:
+              isSelected
+                  ? Border.all(color: Colors.white.withOpacity(0.4), width: 1.5)
+                  : null,
+          boxShadow:
+              isSelected
+                  ? [
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.2),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ]
+                  : null,
         ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: isSelected ? color : Colors.grey[600],
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            fontSize: 14,
-          ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              viewId == 'upload'
+                  ? Icons.cloud_upload_outlined
+                  : Icons.videocam_outlined,
+              color: isSelected ? Colors.white : Colors.white70,
+              size: 18,
+            ),
+            SizedBox(width: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                color: isSelected ? Colors.white : Colors.white70,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                fontSize: 14,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
         ),
       ),
-    );
+    ).animate().scale(duration: 300.ms);
   }
 }

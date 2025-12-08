@@ -37,41 +37,45 @@ class _StreamingViewState extends State<StreamingView> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+    final isMobile = screenWidth < 400;
+
     return Column(
       children: [
         // ESP32 Connection Status
-        _buildConnectionStatus(),
-        const SizedBox(height: 16),
+        _buildConnectionStatus(isTablet, isMobile),
+        SizedBox(height: isTablet ? 20 : 16),
 
         // Auto Detection Toggle
-        _buildAutoDetectionToggle(),
-        const SizedBox(height: 20),
+        _buildAutoDetectionToggle(isTablet, isMobile),
+        SizedBox(height: isTablet ? 24 : 20),
 
         // Live Stream Preview
-        _buildStreamPreview(),
-        const SizedBox(height: 20),
+        _buildStreamPreview(isTablet, isMobile),
+        SizedBox(height: isTablet ? 24 : 20),
 
         // Streaming Controls
-        _buildStreamingControls(),
+        _buildStreamingControls(isTablet, isMobile),
 
         // Detection Results
         if (widget.predictionResult != null) ...[
-          const SizedBox(height: 20),
-          _buildDetectionResults(),
+          SizedBox(height: isTablet ? 24 : 20),
+          _buildDetectionResults(isTablet, isMobile),
         ],
 
         // Bounding Box Image
         if (_streamingService.boundingBoxImage != null) ...[
-          const SizedBox(height: 16),
-          _buildBoundingBoxImage(),
+          SizedBox(height: isTablet ? 20 : 16),
+          _buildBoundingBoxImage(isTablet, isMobile),
         ],
       ],
     );
   }
 
-  Widget _buildConnectionStatus() {
+  Widget _buildConnectionStatus(bool isTablet, bool isMobile) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: EdgeInsets.all(isTablet ? 20 : (isMobile ? 12 : 16)),
       decoration: BoxDecoration(
         color:
             _streamingService.isConnected ? Colors.green[50] : Colors.red[50],
@@ -86,9 +90,9 @@ class _StreamingViewState extends State<StreamingView> {
           Icon(
             _streamingService.isConnected ? Icons.wifi : Icons.wifi_off,
             color: _streamingService.isConnected ? Colors.green : Colors.red,
-            size: 24,
+            size: isTablet ? 28 : (isMobile ? 20 : 24),
           ),
-          SizedBox(width: 12),
+          SizedBox(width: isTablet ? 16 : (isMobile ? 8 : 12)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,6 +103,7 @@ class _StreamingViewState extends State<StreamingView> {
                       : 'ESP32-CAM Ngắt Kết Nối',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
+                    fontSize: isTablet ? 16 : (isMobile ? 13 : 14),
                     color:
                         _streamingService.isConnected
                             ? Colors.green[700]
@@ -108,7 +113,10 @@ class _StreamingViewState extends State<StreamingView> {
                 if (_streamingService.isConnected)
                   Text(
                     'IP: ${_streamingService.esp32IP}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    style: TextStyle(
+                      fontSize: isTablet ? 14 : (isMobile ? 10 : 12),
+                      color: Colors.grey[600],
+                    ),
                   ),
               ],
             ),
@@ -121,6 +129,7 @@ class _StreamingViewState extends State<StreamingView> {
             child: Text(
               _streamingService.isConnected ? 'Ngắt Kết Nối' : 'Kết Nối',
               style: TextStyle(
+                fontSize: isTablet ? 16 : (isMobile ? 12 : 14),
                 color:
                     _streamingService.isConnected ? Colors.red : Colors.green,
                 fontWeight: FontWeight.bold,
@@ -132,18 +141,37 @@ class _StreamingViewState extends State<StreamingView> {
     );
   }
 
-  Widget _buildAutoDetectionToggle() {
+  Widget _buildAutoDetectionToggle(bool isTablet, bool isMobile) {
     return Container(
-      padding: EdgeInsets.all(12),
+      padding: EdgeInsets.all(isTablet ? 20 : (isMobile ? 12 : 16)),
       decoration: BoxDecoration(
-        color: Colors.blue[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue[200]!, width: 1),
+        gradient: LinearGradient(
+          colors: [
+            Color(0xFF667eea).withOpacity(0.2),
+            Color(0xFF764ba2).withOpacity(0.1),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: Color(0xFF667eea).withOpacity(0.3),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0xFF667eea).withOpacity(0.2),
+            blurRadius: 15,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Icon(Icons.auto_awesome, color: Colors.blue[600], size: 20),
-          SizedBox(width: 8),
+          Icon(
+            Icons.auto_awesome,
+            color: Colors.blue[600],
+            size: isTablet ? 24 : (isMobile ? 18 : 20),
+          ),
+          SizedBox(width: isTablet ? 12 : (isMobile ? 6 : 8)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,14 +181,17 @@ class _StreamingViewState extends State<StreamingView> {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.blue[700],
-                    fontSize: 13,
+                    fontSize: isTablet ? 16 : (isMobile ? 12 : 13),
                   ),
                 ),
                 Text(
                   _streamingService.autoDetectionEnabled
                       ? 'Đang phân tích real-time với YOLO AI'
                       : 'Chỉ hiển thị video, không phân tích',
-                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  style: TextStyle(
+                    fontSize: isTablet ? 13 : (isMobile ? 9 : 11),
+                    color: Colors.grey[600],
+                  ),
                 ),
               ],
             ),
@@ -175,9 +206,9 @@ class _StreamingViewState extends State<StreamingView> {
     );
   }
 
-  Widget _buildStreamPreview() {
+  Widget _buildStreamPreview(bool isTablet, bool isMobile) {
     return Container(
-      height: 300,
+      height: isTablet ? 400 : (isMobile ? 250 : 300),
       width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.black,
@@ -217,7 +248,7 @@ class _StreamingViewState extends State<StreamingView> {
     );
   }
 
-  Widget _buildStreamingControls() {
+  Widget _buildStreamingControls(bool isTablet, bool isMobile) {
     return Row(
       children: [
         Expanded(
@@ -241,9 +272,11 @@ class _StreamingViewState extends State<StreamingView> {
                         _streamingService.startStreaming();
                       }
                     },
+            isTablet: isTablet,
+            isMobile: isMobile,
           ),
         ),
-        const SizedBox(width: 16),
+        SizedBox(width: isTablet ? 20 : (isMobile ? 12 : 16)),
         Expanded(
           child: _buildActionButton(
             icon: Icons.camera_alt,
@@ -253,6 +286,8 @@ class _StreamingViewState extends State<StreamingView> {
                 !_streamingService.isConnected || widget.isProcessing
                     ? null
                     : _streamingService.captureAndAnalyze,
+            isTablet: isTablet,
+            isMobile: isMobile,
           ),
         ),
       ],
@@ -264,9 +299,11 @@ class _StreamingViewState extends State<StreamingView> {
     required String label,
     required List<Color> gradient,
     required VoidCallback? onPressed,
+    required bool isTablet,
+    required bool isMobile,
   }) {
     return Container(
-      height: 56,
+      height: isTablet ? 64 : (isMobile ? 48 : 56),
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: gradient),
         borderRadius: BorderRadius.circular(14),
@@ -290,14 +327,18 @@ class _StreamingViewState extends State<StreamingView> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
+              Icon(
+                icon,
+                color: Colors.white,
+                size: isTablet ? 24 : (isMobile ? 18 : 20),
+              ),
+              SizedBox(width: isTablet ? 10 : (isMobile ? 6 : 8)),
               Text(
                 label,
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w600,
-                  fontSize: 14,
+                  fontSize: isTablet ? 16 : (isMobile ? 12 : 14),
                 ),
               ),
             ],
@@ -307,10 +348,10 @@ class _StreamingViewState extends State<StreamingView> {
     );
   }
 
-  Widget _buildDetectionResults() {
+  Widget _buildDetectionResults(bool isTablet, bool isMobile) {
     final result = widget.predictionResult!;
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: EdgeInsets.all(isTablet ? 20 : (isMobile ? 12 : 16)),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors:
@@ -337,16 +378,16 @@ class _StreamingViewState extends State<StreamingView> {
                     result['fire_detected'] == true
                         ? Colors.red[700]
                         : Colors.green[700],
-                size: 24,
+                size: isTablet ? 28 : (isMobile ? 20 : 24),
               ),
-              SizedBox(width: 8),
+              SizedBox(width: isTablet ? 12 : (isMobile ? 6 : 8)),
               Text(
                 result['fire_detected'] == true
                     ? '🚨 PHÁT HIỆN LỬA/KHÓI!'
                     : '✅ An Toàn',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
+                  fontSize: isTablet ? 18 : (isMobile ? 14 : 16),
                   color:
                       result['fire_detected'] == true
                           ? Colors.red[800]
@@ -355,10 +396,13 @@ class _StreamingViewState extends State<StreamingView> {
               ),
             ],
           ),
-          SizedBox(height: 8),
+          SizedBox(height: isTablet ? 12 : (isMobile ? 6 : 8)),
           Text(
             'Độ tin cậy: ${(result['confidence'] * 100).toStringAsFixed(1)}%',
-            style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+            style: TextStyle(
+              fontSize: isTablet ? 16 : (isMobile ? 12 : 14),
+              color: Colors.grey[700],
+            ),
           ),
           if (result['detections'] != null && result['detections'].isNotEmpty)
             Text(
@@ -374,7 +418,7 @@ class _StreamingViewState extends State<StreamingView> {
     );
   }
 
-  Widget _buildBoundingBoxImage() {
+  Widget _buildBoundingBoxImage(bool isTablet, bool isMobile) {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
@@ -385,7 +429,7 @@ class _StreamingViewState extends State<StreamingView> {
         children: [
           Container(
             width: double.infinity,
-            padding: EdgeInsets.all(8),
+            padding: EdgeInsets.all(isTablet ? 12 : (isMobile ? 6 : 8)),
             decoration: BoxDecoration(
               color: Colors.orange[100],
               borderRadius: BorderRadius.only(
@@ -395,12 +439,16 @@ class _StreamingViewState extends State<StreamingView> {
             ),
             child: Row(
               children: [
-                Icon(Icons.crop_free, color: Colors.orange[700], size: 16),
-                SizedBox(width: 6),
+                Icon(
+                  Icons.crop_free,
+                  color: Colors.orange[700],
+                  size: isTablet ? 20 : (isMobile ? 14 : 16),
+                ),
+                SizedBox(width: isTablet ? 8 : (isMobile ? 4 : 6)),
                 Text(
                   'BOUNDING BOXES (YOLO)',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: isTablet ? 13 : (isMobile ? 9 : 11),
                     fontWeight: FontWeight.bold,
                     color: Colors.orange[700],
                   ),
