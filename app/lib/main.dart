@@ -23,13 +23,13 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    print('✅ Firebase initialized successfully');
+    print('Firebase initialized successfully');
 
     // Initialize notification service with Firebase FCM
     await NotificationService().init();
-    print('✅ Notification service initialized');
+    print('Notification service initialized');
   } catch (e) {
-    print('❌ Firebase initialization error: $e');
+    print('Firebase initialization error: $e');
     // Continue without Firebase for basic app functionality
   }
 
@@ -47,10 +47,11 @@ class FireAlertApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepOrange,
+          seedColor: Color(0xFF667eea),
           brightness: Brightness.light,
         ),
-        textTheme: GoogleFonts.poppinsTextTheme(),
+        textTheme: GoogleFonts.interTextTheme(),
+        fontFamily: GoogleFonts.inter().fontFamily,
         cardTheme: CardTheme(
           elevation: 4,
           shape: RoundedRectangleBorder(
