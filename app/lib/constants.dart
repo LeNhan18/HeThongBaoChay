@@ -4,6 +4,11 @@ import 'package:flutter/material.dart';
 const String apiBaseUrl = 'http://192.168.2.29:8000';
 const String API_BASE_URL = 'http://192.168.2.29:8000';
 
+// ESP32-CAM endpoints
+const String ESP32_CONNECT_ENDPOINT = '/esp32/connect';
+const String ESP32_CAPTURE_ENDPOINT = '/esp32/capture';
+const String ESP32_STREAM_ENDPOINT = '/esp32/stream';
+
 // App Colors
 const Color kPrimaryColor = Colors.deepOrange;
 const Color kSecondaryColor = Colors.orange;

@@ -6,8 +6,12 @@ import 'package:shimmer/shimmer.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
 import '../services/prediction_service.dart';
 import '../services/notification_service.dart';
+import '../services/esp32_streaming_service.dart';
+import '../widgets/streaming_view.dart';
+import '../widgets/upload_view.dart';
 import '../utils/platform_utils.dart' as platform_utils;
 
 // Platform-specific imports
@@ -22,6 +26,7 @@ class PredictScreen extends StatefulWidget {
 
 class _PredictScreenState extends State<PredictScreen> {
   final PredictionService _predictionService = PredictionService();
+  final ESP32StreamingService _esp32Service = ESP32StreamingService();
   final ImagePicker _picker = ImagePicker();
 
   dynamic _selectedFile;
@@ -30,9 +35,13 @@ class _PredictScreenState extends State<PredictScreen> {
   Map<String, dynamic>? _predictionResult;
   VideoPlayerController? _videoController;
 
+  // UI state
+  String _currentView = 'upload'; // 'upload', 'streaming'
+
   @override
   void dispose() {
     _videoController?.dispose();
+    _esp32Service.dispose();
     super.dispose();
   }
 
@@ -324,33 +333,56 @@ class _PredictScreenState extends State<PredictScreen> {
 
             const SizedBox(height: 24),
 
-            // Action buttons with glassmorphism
-            Row(
-              children: [
-                Expanded(
-                  child: _buildActionButton(
-                    icon: Icons.image_rounded,
-                    label: 'Chọn Ảnh',
-                    gradient: [Colors.blue[400]!, Colors.blue[600]!],
-                    onPressed: _isProcessing ? null : _pickImage,
+            // View Selection Tabs
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildActionButton(
-                    icon: Icons.videocam_rounded,
-                    label: 'Chọn Video',
-                    gradient: [Colors.purple[400]!, Colors.purple[600]!],
-                    onPressed: _isProcessing ? null : _pickVideo,
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildViewTab('upload', 'Upload', Colors.blue),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: _buildViewTab(
+                      'streaming',
+                      'ESP32 Streaming',
+                      Colors.orange,
+                    ),
+                  ),
+                ],
+              ),
             ),
 
             const SizedBox(height: 24),
 
-            // Preview area
-            if (_selectedFile != null) ...[
+            // Content based on selected view
+            if (_currentView == 'upload')
+              UploadView(
+                onPickImage: _pickImage,
+                onPickVideo: _pickVideo,
+                onPredict: _predict,
+                isProcessing: _isProcessing,
+              ),
+            if (_currentView == 'streaming')
+              StreamingView(
+                isProcessing: _isProcessing,
+                onFireAlert: _showFireAlert,
+                onError: _showError,
+                onSuccess: _showSuccess,
+              ),
+
+            // Show preview area only for upload view
+            if (_currentView == 'upload' && _selectedFile != null) ...[
+              const SizedBox(height: 24),
               GlassmorphicContainer(
                 width: double.infinity,
                 height: 360,
@@ -833,50 +865,44 @@ class _PredictScreenState extends State<PredictScreen> {
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required List<Color> gradient,
-    required VoidCallback? onPressed,
-  }) {
-    return Container(
-      height: 56,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: gradient),
-        borderRadius: BorderRadius.circular(14),
-        boxShadow:
-            onPressed != null
-                ? [
-                  BoxShadow(
-                    color: gradient[0].withOpacity(0.4),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-                : [],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(14),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: Colors.white, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+  void _showFireAlert(Map<String, dynamic> alertData) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.red[50],
+            title: Row(
+              children: [
+                Icon(Icons.warning, color: Colors.red, size: 32),
+                SizedBox(width: 12),
+                Text(
+                  '🚨 CẢNH BÁO CHÁY!',
+                  style: TextStyle(color: Colors.red[800]),
                 ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('📍 Vị trí: ${alertData['location']}'),
+                Text(
+                  '🎯 Độ tin cậy: ${(alertData['confidence'] * 100).toInt()}%',
+                ),
+                Text(
+                  '📅 Thời gian: ${DateTime.now().toString().substring(0, 19)}',
+                ),
+                Text('📷 Thiết bị: ${alertData['device_name']}'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Đã xem', style: TextStyle(color: Colors.red)),
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 
@@ -1112,9 +1138,9 @@ class _PredictScreenState extends State<PredictScreen> {
         location: 'Khu vực test',
         confidence: 0.95,
       );
-      _showSuccess('✅ Đã gửi thông báo test cháy!');
+      _showSuccess(' Đã gửi thông báo test cháy!');
     } catch (e) {
-      _showError('❌ Lỗi gửi thông báo: $e');
+      _showError('Lỗi gửi thông báo: $e');
     }
   }
 
@@ -1124,9 +1150,9 @@ class _PredictScreenState extends State<PredictScreen> {
         location: 'Khu vực test',
         confidence: 0.85,
       );
-      _showSuccess('✅ Đã gửi thông báo test khói!');
+      _showSuccess(' Đã gửi thông báo test khói!');
     } catch (e) {
-      _showError('❌ Lỗi gửi thông báo: $e');
+      _showError(' Lỗi gửi thông báo: $e');
     }
   }
 
@@ -1170,6 +1196,37 @@ class _PredictScreenState extends State<PredictScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildViewTab(String viewId, String label, Color color) {
+    final bool isSelected = _currentView == viewId;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _currentView = viewId;
+        });
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? color : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: isSelected ? color : Colors.grey[600],
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            fontSize: 14,
           ),
         ),
       ),

@@ -149,7 +149,6 @@ class CameraDetectionService {
         'Content-Type': 'multipart/form-data',
         'Accept': 'image/jpeg',
       });
-
       // Send request with timeout
       final streamedResponse = await request.send().timeout(_timeout);
       final response = await http.Response.fromStream(streamedResponse);
