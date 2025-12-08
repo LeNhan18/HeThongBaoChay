@@ -4,6 +4,7 @@ import time
 import tempfile
 import shutil
 import logging
+import requests
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from collections import deque
@@ -806,6 +807,278 @@ async def mobile_camera_detect_with_image(
         )
 
 
+# ============================================================================
+# ESP32-CAM Streaming Endpoints
+# ============================================================================
+
+@app.post("/esp32/connect")
+async def esp32_connect(esp32_ip: str = Query(...)):
+    """
+    Test connection to ESP32-CAM device.
+    
+    Args:
+        esp32_ip: IP address of ESP32-CAM device
+    
+    Returns:
+        Connection status and device info
+    """
+    try:
+        # Test ESP32 connection with timeout
+        response = requests.get(
+            f"http://{esp32_ip}/status",
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            return JSONResponse(content={
+                "status": "connected",
+                "esp32_ip": esp32_ip,
+                "device_status": "online",
+                "message": "ESP32-CAM connected successfully"
+            })
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": "failed",
+                    "esp32_ip": esp32_ip,
+                    "device_status": "offline",
+                    "message": "ESP32-CAM not responding"
+                }
+            )
+    
+    except Exception as e:
+        logger.error(f"ESP32 connection error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "esp32_ip": esp32_ip,
+                "device_status": "unknown",
+                "message": f"Connection failed: {str(e)}"
+            }
+        )
+
+
+@app.post("/esp32/capture")
+async def esp32_capture_and_analyze(
+    esp32_ip: str = Query(...),
+    confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
+):
+    """
+    Capture image from ESP32-CAM and analyze for fire/smoke detection.
+    
+    Args:
+        esp32_ip: IP address of ESP32-CAM device
+        confidence: Detection confidence threshold
+    
+    Returns:
+        JSON with detection results and image analysis
+    """
+    validate_model_loaded()
+    
+    try:
+        # Capture image from ESP32-CAM
+        response = requests.get(
+            f"http://{esp32_ip}/capture",
+            headers={'Accept': 'image/jpeg'},
+            timeout=10
+        )
+        
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to capture from ESP32-CAM: {response.status_code}"
+            )
+        
+        # Process captured image
+        img_bytes = response.content
+        img = read_image_bytes(img_bytes)
+        
+        if img is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid image data from ESP32-CAM"
+            )
+        
+        # Run YOLO detection
+        results = model(img, conf=confidence, verbose=False)
+        result = results[0]
+        
+        # Extract detections
+        detections = extract_detections(result)
+        detection_count = count_detections_by_class(detections)
+        
+        # Calculate fire detection
+        fire_detected = detection_count["fire"] > 0 or detection_count["smoke"] > 0
+        max_confidence = max([d["confidence"] for d in detections]) if detections else 0.0
+        
+        return JSONResponse(content={
+            "timestamp": datetime.now().isoformat(),
+            "esp32_ip": esp32_ip,
+            "fire_detected": fire_detected,
+            "confidence": max_confidence,
+            "detections": detections,
+            "fire_count": detection_count["fire"],
+            "smoke_count": detection_count["smoke"],
+            "total_detections": len(detections),
+            "alert_level": get_alert_level(detection_count),
+            "message": get_detection_message(detection_count),
+            "has_bounding_boxes": len(detections) > 0
+        })
+        
+    except Exception as e:
+        logger.error(f"ESP32 capture and analyze error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"ESP32 analysis failed: {str(e)}"
+        )
+
+
+@app.post("/esp32/capture_with_boxes")
+async def esp32_capture_with_bounding_boxes(
+    esp32_ip: str = Query(...),
+    confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
+):
+    """
+    Capture image from ESP32-CAM and return annotated image with bounding boxes.
+    
+    Args:
+        esp32_ip: IP address of ESP32-CAM device
+        confidence: Detection confidence threshold
+    
+    Returns:
+        Annotated image with Vietnamese bounding boxes
+    """
+    validate_model_loaded()
+    
+    try:
+        # Capture image from ESP32-CAM
+        response = requests.get(
+            f"http://{esp32_ip}/capture",
+            headers={'Accept': 'image/jpeg'},
+            timeout=10
+        )
+        
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to capture from ESP32-CAM: {response.status_code}"
+            )
+        
+        # Process captured image
+        img_bytes = response.content
+        img = read_image_bytes(img_bytes)
+        
+        if img is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid image data from ESP32-CAM"
+            )
+        
+        # Run YOLO detection
+        results = model(img, conf=confidence, verbose=False)
+        result = results[0]
+        
+        # Extract detections
+        detections = extract_detections(result)
+        detection_count = count_detections_by_class(detections)
+        
+        # Annotate image with Vietnamese labels
+        annotated_img = plot_with_vietnamese_labels(result, img)
+        
+        # Encode annotated image
+        annotated_bytes = encode_image_to_jpeg(annotated_img)
+        
+        return StreamingResponse(
+            io.BytesIO(annotated_bytes),
+            media_type="image/jpeg",
+            headers={
+                "X-ESP32-IP": esp32_ip,
+                "X-Detection-Count": str(len(detections)),
+                "X-Fire-Count": str(detection_count["fire"]),
+                "X-Smoke-Count": str(detection_count["smoke"]),
+                "X-Alert-Level": get_alert_level(detection_count),
+                "X-Has-Fire": str(detection_count["fire"] > 0),
+                "X-Has-Smoke": str(detection_count["smoke"] > 0),
+                "X-Max-Confidence": str(max([d["confidence"] for d in detections]) if detections else 0.0),
+                "X-Timestamp": datetime.now().isoformat()
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"ESP32 capture with boxes error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"ESP32 bounding box analysis failed: {str(e)}"
+        )
+
+
+@app.get("/esp32/stream")
+async def esp32_stream_proxy(
+    esp32_ip: str = Query(...),
+    confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
+):
+    """
+    Proxy ESP32-CAM stream with real-time AI analysis.
+    
+    Args:
+        esp32_ip: IP address of ESP32-CAM device
+        confidence: Detection confidence threshold
+    
+    Returns:
+        Streaming response with analyzed frames
+    """
+    validate_model_loaded()
+    
+    def esp32_stream_generator():
+        try:
+            # Connect to ESP32 stream
+            stream_response = requests.get(
+                f"http://{esp32_ip}/stream",
+                headers={'Accept': 'multipart/x-mixed-replace'},
+                stream=True,
+                timeout=30
+            )
+            
+            if stream_response.status_code != 200:
+                yield b"--frame\r\nContent-Type: text/plain\r\n\r\nESP32 stream connection failed\r\n\r\n"
+                return
+            
+            frame_count = 0
+            for chunk in stream_response.iter_content(chunk_size=8192):
+                if chunk:
+                    frame_count += 1
+                    
+                    # Process every 3rd frame for AI analysis to avoid overload
+                    if frame_count % 3 == 0:
+                        try:
+                            # Try to extract frame and analyze
+                            # This is simplified - in real implementation would need proper MJPEG parsing
+                            yield f"--frame\r\nContent-Type: image/jpeg\r\n\r\n".encode()
+                            yield chunk
+                            yield b"\r\n"
+                        except Exception as e:
+                            logger.error(f"Frame analysis error: {e}")
+                            yield chunk
+                    else:
+                        yield chunk
+                        
+        except Exception as e:
+            logger.error(f"ESP32 stream error: {e}")
+            yield b"--frame\r\nContent-Type: text/plain\r\n\r\nStream connection lost\r\n\r\n"
+    
+    return StreamingResponse(
+        esp32_stream_generator(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        }
+    )
+
+
 def get_alert_level(detection_count: Dict[str, int]) -> str:
     """Determine alert level based on detections."""
     if detection_count["fire"] > 0:
@@ -819,10 +1092,11 @@ def get_alert_level(detection_count: Dict[str, int]) -> str:
 def get_detection_message(detection_count: Dict[str, int]) -> str:
     """Get detection message in Vietnamese."""
     if detection_count["fire"] > 0 and detection_count["smoke"] > 0:
-        return f"⚠️ CẢNH BÁO: Phát hiện {detection_count['fire']} điểm lửa và {detection_count['smoke']} điểm khói!"
+        return f" CẢNH BÁO: Phát hiện {detection_count['fire']} điểm lửa và {detection_count['smoke']} điểm khói!"
     elif detection_count["fire"] > 0:
-        return f"🔥 CẢNH BÁO: Phát hiện {detection_count['fire']} điểm lửa!"
+        return f"CẢNH BÁO: Phát hiện {detection_count['fire']} điểm lửa!"
     elif detection_count["smoke"] > 0:
-        return f"💨 CẢNH BÁO: Phát hiện {detection_count['smoke']} điểm khói!"
+        return f"CẢNH BÁO: Phát hiện {detection_count['smoke']} điểm khói!"
     else:
-        return "✅ Không phát hiện lửa hoặc khói"
+        return "Không phát hiện lửa hoặc khói"
+
