@@ -65,17 +65,17 @@ class ESP32StreamingService {
 
       if (response.statusCode == 200) {
         _isConnected = true;
-        onSuccess?.call('✅ Kết nối ESP32-CAM thành công!');
+        onSuccess?.call(' Kết nối ESP32-CAM thành công!');
         onStateChanged?.call();
         return true;
       } else {
         _isConnected = false;
-        onError?.call('❌ ESP32-CAM không phản hồi: ${response.statusCode}');
+        onError?.call(' ESP32-CAM không phản hồi: ${response.statusCode}');
         return false;
       }
     } catch (e) {
       _isConnected = false;
-      onError?.call('❌ Không thể kết nối ESP32-CAM: $e');
+      onError?.call(' Không thể kết nối ESP32-CAM: $e');
       return false;
     }
   }
@@ -122,7 +122,7 @@ class ESP32StreamingService {
           }
         }
       } catch (e) {
-        debugPrint('❌ Error getting ESP32 frame: $e');
+        debugPrint(' Error getting ESP32 frame: $e');
       }
     });
   }
@@ -168,7 +168,7 @@ class ESP32StreamingService {
               _boundingBoxImage = boxResponse.bodyBytes;
             }
           } catch (e) {
-            debugPrint('❌ Error fetching bounding box image: $e');
+            debugPrint(' Error fetching bounding box image: $e');
           }
         } else {
           _boundingBoxImage = null;
@@ -176,7 +176,7 @@ class ESP32StreamingService {
 
         if (result['fire_detected'] == true) {
           await NotificationService().showNotification(
-            title: '🚨 CẢNH BÁO CHÁY ESP32!',
+            title: ' CẢNH BÁO CHÁY ESP32!',
             body:
                 'ESP32-CAM phát hiện lửa - Độ tin cậy: ${(result['confidence'] * 100).toInt()}%',
           );
@@ -195,12 +195,12 @@ class ESP32StreamingService {
         return result;
       } else {
         onError?.call(
-          '❌ Backend không thể phân tích ESP32: ${response.statusCode}',
+          ' Backend không thể phân tích ESP32: ${response.statusCode}',
         );
         return null;
       }
     } catch (e) {
-      onError?.call('❌ Lỗi phân tích ESP32 qua backend: $e');
+      onError?.call(' Lỗi phân tích ESP32 qua backend: $e');
       return null;
     }
   }
@@ -227,7 +227,7 @@ class ESP32StreamingService {
           .timeout(Duration(seconds: 8));
 
       if (response.statusCode != 200) {
-        debugPrint('❌ Backend ESP32 analysis failed: ${response.statusCode}');
+        debugPrint(' Backend ESP32 analysis failed: ${response.statusCode}');
         return;
       }
 
@@ -238,7 +238,7 @@ class ESP32StreamingService {
 
         // Gửi push notification
         await NotificationService().showNotification(
-          title: '🚨 CẢNH BÁO CHÁY ESP32!',
+          title: ' CẢNH BÁO CHÁY ESP32!',
           body:
               'ESP32-CAM phát hiện lửa - Độ tin cậy: ${(result['confidence'] * 100).toInt()}%',
         );
@@ -258,7 +258,7 @@ class ESP32StreamingService {
             _boundingBoxImage = boxResponse.bodyBytes;
           }
         } catch (e) {
-          debugPrint('❌ Error fetching real-time bounding boxes: $e');
+          debugPrint(' Error fetching real-time bounding boxes: $e');
         }
 
         // Trigger fire detected callback
@@ -277,7 +277,7 @@ class ESP32StreamingService {
         );
       }
     } catch (e) {
-      debugPrint('❌ Error analyzing ESP32 frame: $e');
+      debugPrint(' Error analyzing ESP32 frame: $e');
     }
   }
 
