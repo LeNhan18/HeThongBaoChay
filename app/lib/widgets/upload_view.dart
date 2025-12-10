@@ -84,13 +84,15 @@ class _UploadViewState extends State<UploadView> with TickerProviderStateMixin {
                   children: [
                     Text(
                       'Chọn nguồn ảnh',
+                      textAlign: TextAlign.center,
                       style: GoogleFonts.orbitron(
-                        fontSize: isTablet ? 24 : 20,
+                        fontSize: isTablet ? 22 : 18,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
+                        height: 1.2,
                       ),
                     ),
-                    SizedBox(height: isTablet ? 30 : 20),
+                    SizedBox(height: isTablet ? 25 : 20),
                     Row(
                       children: [
                         Expanded(
@@ -188,91 +190,86 @@ class _UploadViewState extends State<UploadView> with TickerProviderStateMixin {
     final isTablet = screenWidth > 600;
     final isMobile = screenWidth < 400;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              const Color(0xFF0f0c29),
-              const Color(0xFF302b63),
-              const Color(0xFF24243e),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF0f0c29),
+            const Color(0xFF302b63),
+            const Color(0xFF24243e),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 16 : (isTablet ? 40 : 24),
-              vertical: isMobile ? 16 : 24,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Header
-                Container(
-                  margin: EdgeInsets.only(bottom: isTablet ? 40 : 30),
-                  child: Text(
-                    'Tải Ảnh Lên',
-                    style: GoogleFonts.orbitron(
-                      fontSize: isMobile ? 28 : (isTablet ? 36 : 32),
-                      fontWeight: FontWeight.bold,
-                      foreground:
-                          Paint()
-                            ..shader = LinearGradient(
-                              colors: [
-                                const Color(0xFF00f2fe),
-                                const Color(0xFF4facfe),
-                              ],
-                            ).createShader(
-                              const Rect.fromLTWH(0.0, 0.0, 200.0, 70.0),
-                            ),
-                    ),
+      ),
+      child: SingleChildScrollView(
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 12 : (isTablet ? 32 : 16),
+          vertical: isMobile ? 12 : (isTablet ? 20 : 16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Header
+            Container(
+              margin: EdgeInsets.only(bottom: isTablet ? 40 : 30),
+              child: ShaderMask(
+                shaderCallback: (Rect bounds) {
+                  return LinearGradient(
+                    colors: [const Color(0xFF00f2fe), const Color(0xFF4facfe)],
+                  ).createShader(bounds);
+                },
+                child: Text(
+                  'AI Fire Detector',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.orbitron(
+                    fontSize: isMobile ? 24 : (isTablet ? 32 : 28),
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    height: 1.2,
                   ),
-                ).animate().fadeIn(delay: 200.ms).slideY(begin: -0.3),
+                ),
+              ),
+            ).animate().fadeIn(delay: 200.ms).slideY(begin: -0.3),
 
-                // Upload Area
-                Container(
-                  width: double.infinity,
-                  constraints: BoxConstraints(
-                    maxWidth: isTablet ? 600 : double.infinity,
-                    minHeight: isTablet ? 400 : 300,
+            // Upload Area
+            Container(
+              width: double.infinity,
+              constraints: BoxConstraints(
+                maxWidth: isTablet ? 600 : double.infinity,
+                minHeight: isTablet ? 350 : 280,
+              ),
+              margin: EdgeInsets.only(bottom: isTablet ? 30 : 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withOpacity(0.1),
+                    Colors.white.withOpacity(0.05),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF4facfe).withOpacity(0.2),
+                    blurRadius: 20,
+                    spreadRadius: 5,
                   ),
-                  margin: EdgeInsets.only(bottom: isTablet ? 40 : 30),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withOpacity(0.1),
-                        Colors.white.withOpacity(0.05),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
-                      width: 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF4facfe).withOpacity(0.2),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                  child: _buildUploadPrompt(isTablet, isMobile),
-                ).animate().fadeIn(delay: 400.ms).scale(delay: 500.ms),
+                ],
+              ),
+              child: _buildUploadPrompt(isTablet, isMobile),
+            ).animate().fadeIn(delay: 400.ms).scale(delay: 500.ms),
 
-                // Action Buttons
-                _buildActionButtons(isTablet, isMobile),
-              ],
-            ),
-          ),
+            // Action Buttons
+            _buildActionButtons(isTablet, isMobile),
+          ],
         ),
       ),
     );
@@ -285,7 +282,10 @@ class _UploadViewState extends State<UploadView> with TickerProviderStateMixin {
         onTap: _showImageSourceDialog,
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: EdgeInsets.all(isTablet ? 40 : 30),
+          padding: EdgeInsets.symmetric(
+            horizontal: isTablet ? 40 : 30,
+            vertical: isTablet ? 50 : 40,
+          ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -323,20 +323,23 @@ class _UploadViewState extends State<UploadView> with TickerProviderStateMixin {
               ),
               SizedBox(height: isTablet ? 30 : 20),
               Text(
-                'Chọn ảnh để tải lên',
+                'Chọn ảnh để phân tích',
+                textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: isTablet ? 20 : 18,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
+                  height: 1.3,
                 ),
               ),
-              SizedBox(height: isTablet ? 15 : 10),
+              SizedBox(height: isTablet ? 20 : 15),
               Text(
-                'Chạm để chọn từ camera hoặc thư viện',
+                'Chạm để chọn từ camera\nhoặc thư viện ảnh',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: isTablet ? 16 : 14,
                   color: Colors.grey.shade300,
+                  height: 1.4,
                 ),
               ),
             ],
@@ -409,7 +412,7 @@ class _UploadViewState extends State<UploadView> with TickerProviderStateMixin {
             ),
           ),
         ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.3),
-        SizedBox(height: isTablet ? 20 : 15),
+        SizedBox(height: isTablet ? 24 : 18),
         Container(
           width: double.infinity,
           constraints: BoxConstraints(

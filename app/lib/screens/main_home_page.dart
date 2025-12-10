@@ -4,6 +4,7 @@ import 'dashboard_screen.dart';
 import 'alerts_screen.dart';
 import 'predict_screen.dart';
 import 'camera_detection_screen.dart';
+import 'esp32_camera_screen.dart';
 
 class MainHomePage extends StatefulWidget {
   const MainHomePage({super.key});
@@ -21,12 +22,14 @@ class _MainHomePageState extends State<MainHomePage> {
     const DashboardScreen(),
     const PredictScreen(),
     const AlertsScreen(),
+    const ESP32CameraScreen(),
   ];
 
   final List<String> _titles = [
     'Giám Sát Camera',
     'Dự Đoán',
     'Lịch Sử Cảnh Báo',
+    'ESP32-CAM',
   ];
 
   Future<void> _showLogoutDialog() async {
@@ -78,48 +81,55 @@ class _MainHomePageState extends State<MainHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _titles[_selectedIndex],
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        elevation: 2,
-        actions: [
-          _isLoggingOut
-              ? const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+      appBar:
+          _selectedIndex == 1
+              ? null
+              : AppBar(
+                title: Text(
+                  _titles[_selectedIndex],
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-              )
-              : IconButton(
-                icon: const Icon(Icons.logout),
-                onPressed: _showLogoutDialog,
-                tooltip: 'Đăng xuất',
+                centerTitle: true,
+                backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+                elevation: 2,
+                actions: [
+                  _isLoggingOut
+                      ? const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                      : IconButton(
+                        icon: const Icon(Icons.logout),
+                        onPressed: _showLogoutDialog,
+                        tooltip: 'Đăng xuất',
+                      ),
+                ],
               ),
-        ],
-      ),
       body: _screens[_selectedIndex],
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => const CameraDetectionScreen(),
-            ),
-          );
-        },
-        icon: const Icon(Icons.camera_alt),
-        label: const Text('Phát Hiện Lửa'),
-        backgroundColor: Colors.deepOrange,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        tooltip: 'Mở camera phát hiện lửa real-time',
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton:
+          _selectedIndex != 1
+              ? FloatingActionButton.extended(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const CameraDetectionScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.camera_alt),
+                label: const Text('Phát Hiện Lửa'),
+                backgroundColor: Colors.deepOrange,
+                foregroundColor: Colors.white,
+                elevation: 4,
+                tooltip: 'Mở camera phát hiện lửa real-time',
+              )
+              : null,
+      floatingActionButtonLocation:
+          _selectedIndex != 1 ? FloatingActionButtonLocation.centerFloat : null,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) {
@@ -144,6 +154,11 @@ class _MainHomePageState extends State<MainHomePage> {
             icon: Icon(Icons.notification_important),
             activeIcon: Icon(Icons.notification_important),
             label: 'Cảnh Báo',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.camera_alt),
+            activeIcon: Icon(Icons.camera_alt),
+            label: 'ESP32-CAM',
           ),
         ],
         selectedItemColor: Colors.deepOrange,
