@@ -4,15 +4,57 @@ import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../constants.dart';
+import '../config/api_config.dart';
 
 class PredictionService {
+  /// Test connection to server
+  Future<Map<String, dynamic>> testConnection() async {
+    final baseUrl = ApiConfig.getApiBaseUrl();
+    print(' Testing connection to: $baseUrl');
+
+    try {
+      final uri = Uri.parse('$baseUrl/test/');
+      print(' Test URL: $uri');
+
+      final response = await http
+          .get(uri, headers: {'Content-Type': 'application/json'})
+          .timeout(Duration(seconds: 10));
+
+      print(' Test response status: ${response.statusCode}');
+      print(' Test response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return {
+          'success': true,
+          'message': data['message'],
+          'server_ip': data['server_ip'],
+          'server_port': data['server_port'],
+          'timestamp': data['timestamp'],
+        };
+      } else {
+        return {
+          'success': false,
+          'error': 'Server returned status ${response.statusCode}',
+          'response': response.body,
+        };
+      }
+    } catch (e) {
+      print(' Connection test failed: $e');
+      return {'success': false, 'error': 'Connection failed: $e'};
+    }
+  }
+
   Future<Map<String, dynamic>> uploadAndPredict(
     dynamic file,
     String type,
   ) async {
+    final baseUrl = ApiConfig.getApiBaseUrl(); // Use dynamic host
+    print('Connecting to: $baseUrl'); // Debug log
     try {
       final endpoint = type == 'image' ? 'predict' : 'analyze_video';
-      final uri = Uri.parse('$apiBaseUrl/$endpoint/');
+      final uri = Uri.parse('$baseUrl/$endpoint/');
+      print('Full URL: $uri'); // Debug log
       final request = http.MultipartRequest('POST', uri);
 
       // Add file to request - Handle XFile for both web and mobile platforms
@@ -28,8 +70,10 @@ class PredictionService {
       }
 
       // Send request
+      print(' Sending request to server...'); // Debug log
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
+      print(' Response status: ${response.statusCode}'); // Debug log
 
       if (response.statusCode == 200) {
         if (type == 'image') {
@@ -109,10 +153,24 @@ class PredictionService {
           };
         }
       } else {
-        throw Exception('Failed to predict: ${response.statusCode}');
+        throw Exception(
+          'Server error ${response.statusCode}: ${response.body}. '
+          'Đảm bảo server AI đang chạy tại $baseUrl',
+        );
       }
     } catch (e) {
-      throw Exception('Error uploading file: $e');
+      if (e.toString().contains('Connection refused') ||
+          e.toString().contains('Network is unreachable')) {
+        throw Exception(
+          'Không thể kết nối đến server AI tại $baseUrl. '
+          'Vui lòng:\n'
+          '1. Kiểm tra server AI có đang chạy không\n'
+          '2. Nếu Android device thật: cập nhật IP trong api_config.dart\n'
+          '3. Kiểm tra firewall và network connection\n'
+          'Chi tiết lỗi: $e',
+        );
+      }
+      throw Exception('Lỗi upload file: $e');
     }
   }
 
