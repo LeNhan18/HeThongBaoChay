@@ -9,6 +9,10 @@ class DetectionResult {
   final String alertLevel;
   final String message;
   final int? annotatedImageSize;
+  final bool fireDetected;
+  final double confidence;
+  final int fireCount;
+  final int smokeCount;
 
   DetectionResult({
     required this.success,
@@ -21,7 +25,14 @@ class DetectionResult {
     required this.alertLevel,
     required this.message,
     this.annotatedImageSize,
-  });
+    bool? fireDetected,
+    double? confidence,
+    int? fireCount,
+    int? smokeCount,
+  }) : fireDetected = fireDetected ?? hasFire || hasSmoke,
+       confidence = confidence ?? 0.0,
+       fireCount = fireCount ?? (detectionCount['fire'] ?? 0),
+       smokeCount = smokeCount ?? (detectionCount['smoke'] ?? 0);
 
   factory DetectionResult.fromJson(Map<String, dynamic> json) {
     return DetectionResult(
@@ -35,6 +46,10 @@ class DetectionResult {
       alertLevel: json['alert_level'] ?? 'LOW',
       message: json['message'] ?? 'Không có phát hiện',
       annotatedImageSize: json['annotated_image_size'],
+      fireDetected: json['fire_detected'] ?? false,
+      confidence: (json['confidence'] ?? 0.0).toDouble(),
+      fireCount: json['fire_count'] ?? 0,
+      smokeCount: json['smoke_count'] ?? 0,
     );
   }
 
