@@ -288,6 +288,17 @@ def health_check():
         "version": API_VERSION
     }
 
+@app.get("/test/")
+def test_connection():
+    """Simple test endpoint for debugging network connectivity."""
+    logger.info("Test endpoint called")
+    return {
+        "message": "Connection successful!",
+        "timestamp": datetime.now().isoformat(),
+        "server_ip": "192.168.1.149",
+        "server_port": 8000
+    }
+
 # ============================================================================
 # ========= Image Detection Endpoints ========================================
 # ============================================================================

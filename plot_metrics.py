@@ -63,7 +63,7 @@ axes[1, 1].set_xlabel('Epoch')
 axes[1, 1].set_ylabel('Score')
 axes[1, 1].legend()
 axes[1, 1].grid(True)
-axes
+
 # Plot 6: Learning Rate
 axes[1, 2].plot(df['epoch'], df['lr/pg0'], label='lr/pg0')
 axes[1, 2].plot(df['epoch'], df['lr/pg1'], label='lr/pg1')
