@@ -272,7 +272,7 @@ class _PredictScreenState extends State<PredictScreen> {
 
   Future<void> _testConnection() async {
     final currentHost = ApiConfig.getApiBaseUrl();
-    _showError('🧪 Đang test kết nối đến $currentHost...');
+    _showError(' Đang test kết nối đến $currentHost...');
 
     try {
       // Use the new test endpoint
@@ -280,26 +280,26 @@ class _PredictScreenState extends State<PredictScreen> {
 
       if (result['success'] == true) {
         _showSuccess(
-          '✅ ${result['message']}\n'
-          '🖥️ Server IP: ${result['server_ip']}\n'
-          '🔌 Port: ${result['server_port']}\n'
-          '⏰ ${result['timestamp']}',
+          ' ${result['message']}\n'
+          ' Server IP: ${result['server_ip']}\n'
+          ' Port: ${result['server_port']}\n'
+          ' ${result['timestamp']}',
         );
       } else {
-        _showError('❌ Test thất bại: ${result['error']}');
+        _showError(' Test thất bại: ${result['error']}');
 
         // Try to find a working host with detailed logging
-        _showError('🔍 Đang tìm kiếm server khả dụng...');
+        _showError(' Đang tìm kiếm server khả dụng...');
 
         for (String host in ApiConfig.getHostsToTry()) {
           _showError('Testing: $host');
           bool hostWorks = await NetworkUtils.testConnection(host);
           if (hostWorks) {
-            _showSuccess('✅ Tìm thấy server hoạt động: $host');
-            _showSuccess('📝 Hãy cập nhật constants.dart với host này');
+            _showSuccess(' Tìm thấy server hoạt động: $host');
+            _showSuccess(' Hãy cập nhật constants.dart với host này');
             return;
           } else {
-            _showError('❌ $host không hoạt động');
+            _showError(' $host không hoạt động');
           }
           // Small delay between tests
           await Future.delayed(Duration(milliseconds: 500));
@@ -951,7 +951,7 @@ class _PredictScreenState extends State<PredictScreen> {
               children: [
                 Expanded(
                   child: _buildDetectionBadge(
-                    '🔥 Lửa',
+                    ' Lua',
                     fireCount,
                     Colors.red.withOpacity(0.1),
                     Colors.red,
@@ -960,10 +960,10 @@ class _PredictScreenState extends State<PredictScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: _buildDetectionBadge(
-                    '💨 Khói',
+                    ' Khói',
                     smokeCount,
-                    Colors.blue.withOpacity(0.1),
-                    Colors.blue,
+                    Colors.grey.withOpacity(0.1),
+                    Colors.grey,
                   ),
                 ),
               ],

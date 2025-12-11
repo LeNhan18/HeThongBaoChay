@@ -6,7 +6,81 @@ import '../config/api_config.dart';
 class ESP32CameraService {
   static const Duration _timeout = Duration(seconds: 10);
 
-  /// Test connection to ESP32-CAM device
+  /// Direct connection to ESP32-CAM (bypass backend)
+  Future<Map<String, dynamic>> connectDirectly(String esp32Ip) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('http://$esp32Ip/'),
+            headers: {'Accept': 'application/json'},
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        return {
+          'status': 'connected',
+          'message': 'Kết nối trực tiếp ESP32-CAM thành công!',
+          'esp32_ip': esp32Ip,
+          'direct_mode': true,
+        };
+      } else {
+        throw Exception('HTTP ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Kết nối trực tiếp thất bại: $e');
+    }
+  }
+
+  /// Start stream on ESP32-CAM
+  Future<bool> startStream(String esp32Ip) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('http://$esp32Ip/control?var=stream&val=1'),
+            headers: {'Accept': 'application/json'},
+          )
+          .timeout(_timeout);
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Start stream error: $e');
+      return false;
+    }
+  }
+
+  /// Direct capture from ESP32-CAM
+  Future<Map<String, dynamic>> captureDirectly(
+    String esp32Ip, {
+    double confidence = 0.25,
+  }) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('http://$esp32Ip/capture'),
+            headers: {'Accept': 'image/jpeg'},
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        // Return mock detection result for now
+        return {
+          'fire_detected': false,
+          'fire_count': 0,
+          'smoke_count': 0,
+          'confidence': 0.0,
+          'message': 'Chụp ảnh trực tiếp từ ESP32-CAM thành công',
+          'image_data': response.bodyBytes,
+          'direct_mode': true,
+        };
+      } else {
+        throw Exception('HTTP ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Chụp ảnh trực tiếp thất bại: $e');
+    }
+  }
+
+  /// Test connection to ESP32-CAM device (via backend)
   Future<Map<String, dynamic>> connectToESP32(String esp32Ip) async {
     try {
       final response = await http
