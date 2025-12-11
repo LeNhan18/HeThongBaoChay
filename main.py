@@ -403,19 +403,7 @@ def analyze_video_file(
     file: UploadFile = File(...),
     confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
 ):
-    """
-    Analyze video file for fire and smoke detection.
-    
-    Processes each frame with YOLO model and returns annotated video file.
-    
-    Args:
-        file: Video file (MP4, AVI, MOV, or MKV format)
-        confidence: Detection confidence threshold (0-1), default 0.25
-    
-    Returns:
-        MP4 video with detection bounding boxes drawn on each frame
-        Headers include processing statistics
-    """
+
     validate_model_loaded()
     
     if not file.filename.endswith(('.mp4', '.avi', '.mov', '.mkv')):
