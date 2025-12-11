@@ -73,6 +73,62 @@ class CameraDetectionService {
     }
   }
 
+  /// Detect fire and smoke from image and return annotated image with bounding boxes
+  Future<List<int>> detectWithBoundingBoxes(
+    String imagePath, {
+    double confidence = 0.25,
+  }) async {
+    try {
+      if (kIsWeb) {
+        throw Exception('Camera detection is not supported on web platform');
+      }
+
+      final file = File(imagePath);
+      if (!await file.exists()) {
+        throw Exception('Image file not found: $imagePath');
+      }
+
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$_baseUrl/detect_with_image?confidence=$confidence'),
+      );
+
+      // Add image file
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'file',
+          imagePath,
+          filename: 'camera_frame.jpg',
+        ),
+      );
+
+      // Add headers
+      request.headers.addAll({
+        'Content-Type': 'multipart/form-data',
+        'Accept': 'image/jpeg',
+      });
+
+      // Send request with timeout
+      final streamedResponse = await request.send().timeout(_timeout);
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        // Return the annotated image bytes
+        return response.bodyBytes;
+      } else {
+        throw Exception('API Error: ${response.statusCode} - ${response.body}');
+      }
+    } on SocketException {
+      throw Exception(
+        'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.',
+      );
+    } on http.ClientException {
+      throw Exception('Lỗi kết nối. Vui lòng thử lại sau.');
+    } catch (e) {
+      throw Exception('Lỗi phát hiện: $e');
+    }
+  }
+
   /// Detect fire and smoke from image bytes
   Future<DetectionResult> detectFromBytes(
     List<int> imageBytes, {
