@@ -7,8 +7,8 @@ import 'package:flutter/material.dart';
 // 3. Bỏ comment và cập nhật IP address phù hợp bên dưới:
 
 // 🤖 Auto-detect best host based on platform
-const String apiBaseUrl = 'http://localhost:8000'; // Default for desktop/web
-const String API_BASE_URL = 'http://localhost:8000'; // ESP32-CAM endpoints
+const String apiBaseUrl = 'http://192.168.2.29:8000'; // Server IP
+const String API_BASE_URL = 'http://192.168.2.29:8000'; // Backend API endpoints
 const String ESP32_CONNECT_ENDPOINT = '/esp32/connect';
 const String ESP32_CAPTURE_ENDPOINT = '/esp32/capture';
 const String ESP32_STREAM_ENDPOINT = '/esp32/stream';
