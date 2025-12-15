@@ -14,6 +14,8 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
+import firebase_admin
+from firebase_admin import credentials, messaging
 
 # =============================================================================
 # == Configuration ============================================================
@@ -36,6 +38,28 @@ CAMERA_HEIGHT = 480
 CAMERA_FPS = 30
 
 # ============================================================================
+# Firebase Configuration
+# ============================================================================
+
+# Initialize Firebase Admin
+FIREBASE_ENABLED = False
+try:
+    # Note: google-services.json is for client apps, not admin SDK
+    # For admin SDK, we need a service account key
+    firebase_key_path = r'e:\HeThongBaoChay\firebase-service-account.json'
+    if os.path.exists(firebase_key_path):
+        cred = credentials.Certificate(firebase_key_path)
+        firebase_admin.initialize_app(cred)
+        logger.info("🔥 Firebase Admin SDK initialized successfully")
+        FIREBASE_ENABLED = True
+    else:
+        logger.warning("⚠️ Firebase service account key not found - Using mock notifications")
+        FIREBASE_ENABLED = False
+except Exception as e:
+    logger.error(f"❌ Firebase initialization failed: {e} - Using mock notifications")
+    FIREBASE_ENABLED = False
+
+# ============================================================================
 # Global State
 # ============================================================================
 
@@ -47,6 +71,14 @@ camera_stats: Dict[str, Any] = {
     "detections": 0,
     "start_time": None
 }
+
+# Mobile alerts queue and FCM tokens
+mobile_alerts: List[Dict] = []
+fcm_tokens: List[str] = []  # Store FCM tokens from mobile apps
+
+# Alert storage for real-time notifications
+pending_alerts: List[Dict[str, Any]] = []
+alert_counter: int = 0
 
 # Vietnamese class name mapping
 VIETNAMESE_LABELS = {
@@ -1019,50 +1051,46 @@ async def esp32_stream_proxy(
     confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
 ):
     """
-    Proxy ESP32-CAM stream with real-time AI analysis.
+    Proxy ESP32-CAM stream - simple passthrough for now.
     
     Args:
         esp32_ip: IP address of ESP32-CAM device
-        confidence: Detection confidence threshold
+        confidence: Detection confidence threshold (for future use)
     
     Returns:
-        Streaming response with analyzed frames
+        Streaming response from ESP32-CAM
     """
-    validate_model_loaded()
     
     def esp32_stream_generator():
         try:
-            # Connect to ESP32 stream
+            # Direct connection to ESP32 stream
+            logger.info(f"Connecting to ESP32 stream: http://{esp32_ip}/stream")
+            
             stream_response = requests.get(
                 f"http://{esp32_ip}/stream",
-                headers={'Accept': 'multipart/x-mixed-replace'},
+                headers={'Accept': 'multipart/x-mixed-replace; boundary=frame'},
                 stream=True,
                 timeout=30
             )
             
             if stream_response.status_code != 200:
+                logger.error(f"ESP32 stream failed with status: {stream_response.status_code}")
                 yield b"--frame\r\nContent-Type: text/plain\r\n\r\nESP32 stream connection failed\r\n\r\n"
                 return
             
-            frame_count = 0
+            logger.info("ESP32 stream connected successfully")
+            
+            # Simply pass through the stream data
             for chunk in stream_response.iter_content(chunk_size=8192):
                 if chunk:
-                    frame_count += 1
-                    
-                    # Process every 3rd frame for AI analysis to avoid overload
-                    if frame_count % 3 == 0:
-                        try:
-                            # Try to extract frame and analyze
-                            # This is simplified - in real implementation would need proper MJPEG parsing
-                            yield f"--frame\r\nContent-Type: image/jpeg\r\n\r\n".encode()
-                            yield chunk
-                            yield b"\r\n"
-                        except Exception as e:
-                            logger.error(f"Frame analysis error: {e}")
-                            yield chunk
-                    else:
-                        yield chunk
+                    yield chunk
                         
+        except requests.exceptions.Timeout:
+            logger.error(f"Timeout connecting to ESP32 at {esp32_ip}")
+            yield b"--frame\r\nContent-Type: text/plain\r\n\r\nESP32 connection timeout\r\n\r\n"
+        except requests.exceptions.ConnectionError:
+            logger.error(f"Connection error to ESP32 at {esp32_ip}")
+            yield b"--frame\r\nContent-Type: text/plain\r\n\r\nESP32 connection error\r\n\r\n"
         except Exception as e:
             logger.error(f"ESP32 stream error: {e}")
             yield b"--frame\r\nContent-Type: text/plain\r\n\r\nStream connection lost\r\n\r\n"
@@ -1072,8 +1100,9 @@ async def esp32_stream_proxy(
         media_type="multipart/x-mixed-replace; boundary=frame",
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0"
+            "Pragma": "no-cache", 
+            "Expires": "0",
+            "Connection": "keep-alive"
         }
     )
 
@@ -1098,4 +1127,238 @@ def get_detection_message(detection_count: Dict[str, int]) -> str:
         return f"CẢNH BÁO: Phát hiện {detection_count['smoke']} điểm khói!"
     else:
         return "Không phát hiện lửa hoặc khói"
+
+
+def send_fcm_notification(title: str, body: str, data: Dict[str, str] = None):
+    """Send FCM push notification to all registered devices"""
+    if not FIREBASE_ENABLED:
+        # Mock notification for testing
+        logger.info(f"📱 MOCK FCM: {title} - {body}")
+        logger.info(f"📱 MOCK DATA: {data}")
+        return True
+        
+    if not fcm_tokens:
+        logger.warning("No FCM tokens registered")
+        return False
+    
+    try:
+        # Create the message
+        message = messaging.MulticastMessage(
+            notification=messaging.Notification(
+                title=title,
+                body=body,
+            ),
+            data=data or {},
+            tokens=fcm_tokens,
+        )
+        
+        # Send the message
+        response = messaging.send_multicast(message)
+        
+        success_count = response.success_count
+        failure_count = response.failure_count
+        
+        logger.info(f"📱 FCM sent: {success_count} success, {failure_count} failed")
+        
+        # Remove invalid tokens
+        if response.failure_count > 0:
+            failed_tokens = []
+            for idx, resp in enumerate(response.responses):
+                if not resp.success:
+                    failed_tokens.append(fcm_tokens[idx])
+                    logger.warning(f"Failed token: {resp.exception}")
+            
+            # Remove failed tokens
+            for token in failed_tokens:
+                if token in fcm_tokens:
+                    fcm_tokens.remove(token)
+        
+        return success_count > 0
+        
+    except Exception as e:
+        logger.error(f"FCM send error: {e}")
+        return False
+
+
+# =============================================================================
+# Mobile Alert Endpoints
+# =============================================================================
+
+@app.post("/mobile/register_fcm_token")
+async def register_fcm_token(token_data: dict):
+    """Register FCM token for push notifications"""
+    try:
+        token = token_data.get('token')
+        if not token:
+            raise HTTPException(status_code=400, detail="FCM token is required")
+        
+        # Add token if not already exists
+        if token not in fcm_tokens:
+            fcm_tokens.append(token)
+            logger.info(f"📱 New FCM token registered: {token[:20]}...")
+        
+        return {
+            "status": "success",
+            "message": "FCM token registered",
+            "total_tokens": len(fcm_tokens)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error registering FCM token: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/mobile/send_alert")
+async def send_mobile_alert(alert_data: dict):
+    """
+    Receive alert from external scripts and forward as notification
+    
+    Args:
+        alert_data: Dict containing alert information
+    
+    Returns:
+        Success/failure response
+    """
+    global pending_alerts, alert_counter
+    
+    try:
+        logger.info(f"Received alert from {alert_data.get('source', 'unknown')}")
+        
+        # Extract alert info
+        fire_count = alert_data.get('fire_count', 0)
+        smoke_count = alert_data.get('smoke_count', 0) 
+        esp32_ip = alert_data.get('esp32_ip', 'unknown')
+        confidence = alert_data.get('confidence', 0)
+        message = alert_data.get('message', 'Phát hiện lửa/khói')
+        
+        # Log the alert
+        logger.warning(f"🔥 FIRE ALERT: Fire={fire_count}, Smoke={smoke_count}, ESP32={esp32_ip}, Conf={confidence:.2%}")
+        
+        # Send FCM push notification
+        fcm_title = "🔥 CẢNH BÁO CHÁY!"
+        fcm_body = f"Phát hiện {fire_count} lửa, {smoke_count} khói từ ESP32-CAM ({esp32_ip})"
+        fcm_data = {
+            "type": "fire_alert",
+            "fire_count": str(fire_count),
+            "smoke_count": str(smoke_count),
+            "esp32_ip": esp32_ip,
+            "confidence": f"{confidence:.2%}",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        fcm_sent = send_fcm_notification(fcm_title, fcm_body, fcm_data)
+        
+        # Create alert for mobile app
+        alert_counter += 1
+        mobile_alert = {
+            "id": alert_counter,
+            "title": "🔥 CẢNH BÁO CHÁY - Live Detection",
+            "body": f"Phát hiện {fire_count} lửa, {smoke_count} khói từ ESP32-CAM ({esp32_ip})",
+            "fire_count": fire_count,
+            "smoke_count": smoke_count,
+            "confidence": confidence,
+            "esp32_ip": esp32_ip,
+            "source": alert_data.get('source', 'Live Detection'),
+            "timestamp": datetime.now().isoformat(),
+            "vietnamese_message": message,
+            "read": False
+        }
+        
+        # Add to pending alerts for app to fetch
+        pending_alerts.append(mobile_alert)
+        
+        # Keep only last 50 alerts
+        if len(pending_alerts) > 50:
+            pending_alerts = pending_alerts[-50:]
+        
+        logger.info(f"📱 Alert added to mobile queue: ID={alert_counter}")
+        
+        response_data = {
+            "status": "success",
+            "message": "Alert received and queued for mobile app",
+            "alert_id": alert_counter,
+            "timestamp": datetime.now().isoformat(),
+            "processed_alert": mobile_alert
+        }
+        
+        return JSONResponse(content=response_data, status_code=200)
+        
+    except Exception as e:
+        logger.error(f"Error processing alert: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to process alert: {str(e)}"
+        )
+
+
+@app.get("/mobile/get_alerts")
+async def get_mobile_alerts(unread_only: bool = Query(False)):
+    """
+    Get pending alerts for mobile app
+    
+    Args:
+        unread_only: If True, return only unread alerts
+    
+    Returns:
+        List of alerts
+    """
+    global pending_alerts
+    
+    try:
+        if unread_only:
+            alerts = [alert for alert in pending_alerts if not alert.get('read', False)]
+        else:
+            alerts = pending_alerts.copy()
+        
+        return JSONResponse(content={
+            "status": "success",
+            "count": len(alerts),
+            "alerts": alerts
+        }, status_code=200)
+        
+    except Exception as e:
+        logger.error(f"Error fetching alerts: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch alerts: {str(e)}"
+        )
+
+
+@app.post("/mobile/mark_alert_read")
+async def mark_alert_read(request_data: dict):
+    """
+    Mark an alert as read
+    
+    Args:
+        request_data: Dict containing alert_id to mark as read
+    
+    Returns:
+        Success response
+    """
+    global pending_alerts
+    
+    try:
+        alert_id = request_data.get('alert_id')
+        if alert_id is None:
+            raise HTTPException(status_code=400, detail="alert_id is required")
+        
+        for alert in pending_alerts:
+            if alert['id'] == alert_id:
+                alert['read'] = True
+                logger.info(f"Alert {alert_id} marked as read")
+                return JSONResponse(content={
+                    "status": "success",
+                    "message": f"Alert {alert_id} marked as read"
+                }, status_code=200)
+        
+        return JSONResponse(content={
+            "status": "error",
+            "message": f"Alert {alert_id} not found"
+        }, status_code=404)
+        
+    except Exception as e:
+        logger.error(f"Error marking alert as read: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to mark alert as read: {str(e)}"
+        )
 
