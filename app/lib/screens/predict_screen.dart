@@ -492,9 +492,26 @@ class _PredictScreenState extends State<PredictScreen> {
                               ))
                           : (_videoController != null &&
                               _videoController!.value.isInitialized)
-                          ? AspectRatio(
-                            aspectRatio: _videoController!.value.aspectRatio,
-                            child: VideoPlayer(_videoController!),
+                          ? Container(
+                            width: double.infinity,
+                            height: 300, // Fixed height for consistency
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: FittedBox(
+                                fit:
+                                    BoxFit
+                                        .contain, // Maintain aspect ratio without cropping
+                                child: SizedBox(
+                                  width: _videoController!.value.size.width,
+                                  height: _videoController!.value.size.height,
+                                  child: VideoPlayer(_videoController!),
+                                ),
+                              ),
+                            ),
                           )
                           : Center(
                             child: Icon(
