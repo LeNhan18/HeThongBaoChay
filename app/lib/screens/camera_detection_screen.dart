@@ -177,10 +177,10 @@ class _CameraDetectionScreenState extends State<CameraDetectionScreen>
       final XFile image = await _cameraController!.takePicture();
 
       // Send to detection service for JSON result only
-      debugPrint('🔍 Sending image to server: ${image.path}');
+      debugPrint(' Sending image to server: ${image.path}');
       final result = await _detectionService.detectFromImage(image.path);
       debugPrint(
-        '✅ Received detection result with ${result.detections.length} objects',
+        ' Received detection result with ${result.detections.length} objects',
       );
 
       if (mounted) {
@@ -196,9 +196,6 @@ class _CameraDetectionScreenState extends State<CameraDetectionScreen>
           }
 
           // Show alert if fire or smoke detected
-          if (result.hasFireOrSmoke) {
-            _showFireSmokeAlert(result);
-          }
         });
       }
     } catch (e) {
@@ -212,33 +209,6 @@ class _CameraDetectionScreenState extends State<CameraDetectionScreen>
     }
   }
 
-  void _showFireSmokeAlert(DetectionResult result) {
-    // Show dialog for critical alerts
-    if (result.alertLevel == 'HIGH') {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder:
-            (context) => AlertDialog(
-              icon: const Icon(Icons.warning, color: Colors.red, size: 48),
-              title: const Text('CẢNH BÁO KHẨN CẤP!'),
-              content: Text(
-                result.message,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('ĐÓNG'),
-                ),
-              ],
-            ),
-      );
-    }
-  }
 
   void _sendAlertNotifications(DetectionResult result) async {
     // Send notifications for fire/smoke detection

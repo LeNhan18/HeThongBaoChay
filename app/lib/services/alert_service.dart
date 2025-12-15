@@ -17,7 +17,6 @@ class AlertService {
   // Live alert polling
   Timer? _alertTimer;
   bool _isPolling = false;
-  Set<int> _processedAlertIds = {};
 
   /// Register FCM token with backend for push notifications
   Future<void> registerFCMToken() async {
@@ -178,7 +177,7 @@ class AlertService {
     _isPolling = true;
     print(' Starting live alert polling...');
 
-    _alertTimer = Timer.periodic(Duration(seconds: 30), (_) async {
+    _alertTimer = Timer.periodic(Duration(seconds: 1), (_) async {
       await _fetchLiveAlerts();
     });
   }
@@ -212,15 +211,7 @@ class AlertService {
         for (final alert in alerts) {
           final alertId = alert['id'] as int;
 
-          // Skip if already processed
-          if (_processedAlertIds.contains(alertId)) {
-            continue;
-          }
-
-          // Mark as processed
-          _processedAlertIds.add(alertId);
-
-          // Show notification for new alert
+          // Show notification for alert immediately
           await _notificationService.showNotification(
             title: alert['title'] ?? ' CẢNH BÁO CHÁY',
             body: alert['body'] ?? 'Phát hiện lửa/khói',
@@ -242,7 +233,7 @@ class AlertService {
             'detections': [],
           });
 
-          // Mark as read on backend (only for new alerts)
+          // Mark as read on backend
           _markAlertAsRead(alertId);
 
           print(' New live alert received: ${alert['body']}');
