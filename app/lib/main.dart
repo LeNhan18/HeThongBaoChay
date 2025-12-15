@@ -34,9 +34,9 @@ Future<void> main() async {
     await AlertService().registerFCMToken();
     print('FCM token registered');
 
-    // Don't start polling - only rely on FCM push notifications
-    // AlertService().startLiveAlertPolling();
-    print('Ready for FCM push notifications');
+    // Start polling with longer interval since FCM is mock
+    AlertService().startLiveAlertPolling();
+    print('Live alert polling started (backup for mock FCM)');
   } catch (e) {
     print('Firebase initialization error: $e');
     // Continue without Firebase for basic app functionality
