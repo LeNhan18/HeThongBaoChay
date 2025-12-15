@@ -34,16 +34,20 @@ class _ESP32CameraScreenState extends State<ESP32CameraScreen> {
   Timer? _detectionTimer;
   bool _lastFireDetected = false;
 
+  // Stream refresh timer
+  Timer? _refreshTimer;
+
   @override
   void initState() {
     super.initState();
-    _ipController.text = "192.168.1.30"; // Thay bằng IP thực của ESP32-CAM
+    _ipController.text = "172.20.10.2"; // IP thực của ESP32-CAM
   }
 
   @override
   void dispose() {
     _ipController.dispose();
     _detectionTimer?.cancel();
+    _refreshTimer?.cancel();
     super.dispose();
   }
 
@@ -90,19 +94,11 @@ class _ESP32CameraScreenState extends State<ESP32CameraScreen> {
           _isCapturing = true;
         });
 
-        late Map<String, dynamic> result;
-
-        if (_directMode) {
-          result = await _esp32Service.captureDirectly(
-            _ipController.text,
-            confidence: _confidence,
-          );
-        } else {
-          result = await _esp32Service.captureAndAnalyze(
-            _ipController.text,
-            confidence: _confidence,
-          );
-        }
+        // Always use backend for AI analysis
+        final result = await _esp32Service.captureAndAnalyze(
+          _ipController.text,
+          confidence: _confidence,
+        );
 
         final detectionResult = DetectionResult.fromJson(result);
 
@@ -148,6 +144,17 @@ class _ESP32CameraScreenState extends State<ESP32CameraScreen> {
     _lastFireDetected = false;
   }
 
+  void _startRefreshTimer() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(Duration(seconds: 1), (_) {
+      if (_isConnected) {
+        setState(() {
+          // Force rebuild to refresh image with new timestamp
+        });
+      }
+    });
+  }
+
   Future<void> _connectToESP32() async {
     if (_ipController.text.isEmpty) {
       _showMessage("Vui lòng nhập địa chỉ IP của ESP32-CAM");
@@ -160,13 +167,8 @@ class _ESP32CameraScreenState extends State<ESP32CameraScreen> {
     });
 
     try {
-      late Map<String, dynamic> result;
-
-      if (_directMode) {
-        result = await _esp32Service.connectDirectly(_ipController.text);
-      } else {
-        result = await _esp32Service.connectToESP32(_ipController.text);
-      }
+      // Always use backend mode for better AI integration
+      final result = await _esp32Service.connectToESP32(_ipController.text);
 
       setState(() {
         _isConnected = result['status'] == 'connected';
@@ -175,29 +177,9 @@ class _ESP32CameraScreenState extends State<ESP32CameraScreen> {
       });
 
       if (_isConnected) {
-        // Tự động start stream cho Direct Mode
-        if (_directMode) {
-          try {
-            final streamStarted = await _esp32Service.startStream(
-              _ipController.text,
-            );
-            if (streamStarted) {
-              _showMessage(
-                "Kết nối ESP32-CAM và bật stream thành công!",
-                isError: false,
-              );
-            } else {
-              _showMessage(
-                "Kết nối ESP32-CAM thành công! (Stream có thể cần bật thủ công)",
-                isError: false,
-              );
-            }
-          } catch (e) {
-            _showMessage("Kết nối ESP32-CAM thành công!", isError: false);
-          }
-        } else {
-          _showMessage("Kết nối ESP32-CAM thành công!", isError: false);
-        }
+        // Start refresh timer for live preview
+        _startRefreshTimer();
+        _showMessage("Kết nối ESP32-CAM thành công!", isError: false);
       } else {
         _showMessage(
           "Không thể kết nối ESP32-CAM: ${result['message']}",
@@ -225,19 +207,11 @@ class _ESP32CameraScreenState extends State<ESP32CameraScreen> {
     });
 
     try {
-      late Map<String, dynamic> result;
-
-      if (_directMode) {
-        result = await _esp32Service.captureDirectly(
-          _ipController.text,
-          confidence: _confidence,
-        );
-      } else {
-        result = await _esp32Service.captureAndAnalyze(
-          _ipController.text,
-          confidence: _confidence,
-        );
-      }
+      // Always use backend for AI analysis
+      final result = await _esp32Service.captureAndAnalyze(
+        _ipController.text,
+        confidence: _confidence,
+      );
 
       setState(() {
         _lastResult = DetectionResult.fromJson(result);
@@ -349,14 +323,17 @@ class _ESP32CameraScreenState extends State<ESP32CameraScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Live Stream Display
+        // Live Snapshot Display (refreshes every second)
         Container(
           width: double.infinity,
           height: 160,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: Image.network(
-              'http://${_ipController.text}:81/stream', // ESP32-CAM stream endpoint
+              'http://172.20.10.4:8000/esp32/capture_with_boxes'
+              '?esp32_ip=${_ipController.text}'
+              '&confidence=$_confidence'
+              '&t=${DateTime.now().millisecondsSinceEpoch}',
               fit: BoxFit.cover,
               loadingBuilder: (context, child, loadingProgress) {
                 if (loadingProgress == null) return child;
@@ -364,10 +341,10 @@ class _ESP32CameraScreenState extends State<ESP32CameraScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      CircularProgressIndicator(),
+                      CircularProgressIndicator(strokeWidth: 2),
                       SizedBox(height: 4),
                       Text(
-                        'Đang tải stream...',
+                        'Đang tải ảnh...',
                         style: TextStyle(color: Colors.white, fontSize: 12),
                       ),
                     ],
@@ -381,10 +358,14 @@ class _ESP32CameraScreenState extends State<ESP32CameraScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.videocam_off, color: Colors.red, size: 24),
+                        Icon(
+                          Icons.camera_alt_outlined,
+                          color: Colors.orange,
+                          size: 24,
+                        ),
                         SizedBox(height: 4),
                         Text(
-                          'Stream không khả dụng\nThử endpoint: /capture\nNhấn nút Chụp để lấy ảnh mới',
+                          'Không thể tải ảnh\nKiểm tra kết nối ESP32-CAM\nIP: ${_ipController.text}',
                           style: TextStyle(color: Colors.white, fontSize: 12),
                           textAlign: TextAlign.center,
                         ),
@@ -399,27 +380,19 @@ class _ESP32CameraScreenState extends State<ESP32CameraScreen> {
 
         SizedBox(height: 8),
 
-        // Stream Control
-        if (_directMode && _isConnected) ...[
-          ElevatedButton.icon(
-            onPressed: () async {
-              final success = await _esp32Service.startStream(
-                _ipController.text,
-              );
-              _showMessage(
-                success ? "Stream đã bật!" : "Không thể bật stream",
-                isError: !success,
-              );
-            },
-            icon: Icon(Icons.play_circle, size: 20),
-            label: Text('Start Stream'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
+        // Backend snapshot info
+        Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(6),
           ),
-        ],
+          child: Text(
+            '📷 Live Snapshot (1fps) qua Backend AI Server\n🤖 Tự động phát hiện lửa/khói với khung bao',
+            style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
+            textAlign: TextAlign.center,
+          ),
+        ),
       ],
     );
   }
@@ -509,34 +482,30 @@ class _ESP32CameraScreenState extends State<ESP32CameraScreen> {
                       ),
                       SizedBox(height: 8),
 
-                      // Direct Mode Toggle
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              'Direct Mode (kết nối trực tiếp ESP32-CAM)',
-                              style: TextStyle(fontSize: 14),
+                      // Backend Mode Info
+                      Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.cloud, color: Colors.blue, size: 20),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Backend Mode: Stream qua AI Server (192.168.2.29:8000)',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.blue.shade700,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
                             ),
-                          ),
-                          Switch(
-                            value: _directMode,
-                            onChanged:
-                                _isConnected
-                                    ? null
-                                    : (value) {
-                                      setState(() {
-                                        _directMode = value;
-                                        if (value) {
-                                          _ipController.text = "192.168.1.30";
-                                        } else {
-                                          _ipController.text = "192.168.1.xxx";
-                                        }
-                                      });
-                                    },
-                            activeColor: Colors.blue,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       SizedBox(height: 16),
                       TextField(
