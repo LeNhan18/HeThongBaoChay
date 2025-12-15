@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
+import 'services/alert_service.dart';
 import 'screens/wrapper.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -28,6 +29,14 @@ Future<void> main() async {
     // Initialize notification service with Firebase FCM
     await NotificationService().init();
     print('Notification service initialized');
+
+    // Register FCM token with backend
+    await AlertService().registerFCMToken();
+    print('FCM token registered');
+
+    // Don't start polling - only rely on FCM push notifications
+    // AlertService().startLiveAlertPolling();
+    print('Ready for FCM push notifications');
   } catch (e) {
     print('Firebase initialization error: $e');
     // Continue without Firebase for basic app functionality

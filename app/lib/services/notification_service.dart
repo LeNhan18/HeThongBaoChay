@@ -1,6 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dart:developer' as dev;
+import 'alert_service.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -91,7 +92,7 @@ class NotificationService {
 
   // Firebase message handlers
   void _handleForegroundMessage(RemoteMessage message) {
-    dev.log('🔔 Foreground message: ${message.notification?.title}');
+    dev.log('🔔 Foreground FCM: ${message.notification?.title}');
 
     // Show local notification when app is in foreground
     if (message.notification != null) {
@@ -99,6 +100,39 @@ class NotificationService {
         title: message.notification!.title ?? 'Cảnh báo lửa',
         body: message.notification!.body ?? 'Phát hiện lửa trong khu vực',
       );
+
+      // Save FCM alert to local storage
+      _saveFCMAlert(message);
+    }
+  }
+
+  void _saveFCMAlert(RemoteMessage message) {
+    try {
+      final data = message.data;
+      if (data['type'] == 'fire_alert') {
+        // Save to AlertService
+        final alertData = {
+          'id': '${DateTime.now().millisecondsSinceEpoch}',
+          'camera_name': 'ESP32-CAM (${data['esp32_ip'] ?? 'Unknown'})',
+          'type': 'FCM_FIRE_DETECTED',
+          'timestamp': data['timestamp'] ?? DateTime.now().toIso8601String(),
+          'source': 'FCM Push Notification',
+          'esp32_ip': data['esp32_ip'] ?? '',
+          'fire_count': int.tryParse(data['fire_count'] ?? '0') ?? 0,
+          'smoke_count': int.tryParse(data['smoke_count'] ?? '0') ?? 0,
+          'confidence':
+              double.tryParse(data['confidence']?.replaceAll('%', '') ?? '0') ??
+              0,
+          'alert_level': 'HIGH',
+          'message': message.notification?.body ?? 'Phát hiện lửa từ FCM',
+          'detections': [],
+        };
+
+        AlertService().addFCMAlert(alertData);
+        dev.log('📱 FCM alert saved to local storage');
+      }
+    } catch (e) {
+      dev.log('❌ Error saving FCM alert: $e');
     }
   }
 
