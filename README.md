@@ -1,8 +1,17 @@
-# 🔥💨 Hệ Thống Báo Cháy Thông Minh - AI Fire & Smoke Detection
+<div align="center">
+
+![Logo](assets/images/logo.png)
+
+
+#  Hệ Thống Báo Cháy Thông Minh - AI Fire & Smoke Detection
+
+*AI-Powered Fire Detection System for Smart Safety*
+
+</div>
 
 Dự án phát triển hệ thống báo cháy thông minh sử dụng YOLOv8 AI để phát hiện lửa và khói với độ chính xác cao, tích hợp Flutter mobile app và ESP32-CAM.
 
-## 📋 Mục Lục
+##  Mục Lục
 
 1. [Tổng Quan](#tổng-quan)
 2. [Tính Năng Chính](#tính-năng-chính)
@@ -18,7 +27,7 @@ Dự án phát triển hệ thống báo cháy thông minh sử dụng YOLOv8 AI
 
 ---
 
-## 🌟 Tổng Quan
+##  Tổng Quan
 
 Hệ thống báo cháy thông minh sử dụng:
 - **YOLOv8 AI Model**: Phát hiện lửa và khói với độ chính xác cao
@@ -27,15 +36,15 @@ Hệ thống báo cháy thông minh sử dụng:
 - **ESP32-CAM**: Camera giám sát không dây
 - **Firebase FCM**: Push notifications miễn phí
 
-## ✨ Tính Năng Chính
+##  Tính Năng Chính
 
-### 🎯 Phát Hiện Real-time
+###  Phát Hiện Real-time
 - Phát hiện lửa và khói từ camera điện thoại
 - Phát hiện từ ESP32-CAM stream
 - Phân tích video với bounding boxes
 - Phân tích ảnh tĩnh
 
-### 📱 Mobile App (Flutter)
+###  Mobile App (Flutter)
 - Giao diện tiếng Việt thân thiện
 - Real-time camera detection
 - ESP32 streaming integration
@@ -43,12 +52,12 @@ Hệ thống báo cháy thông minh sử dụng:
 - Thống kê chi tiết
 - Bounding box visualization
 
-### 🔔 Hệ Thống Cảnh Báo
+###  Hệ Thống Cảnh Báo
 - **HIGH**: Phát hiện lửa → Dialog cảnh báo khẩn cấp
 - **MEDIUM**: Phát hiện khói → SnackBar thông báo
 - **LOW**: An toàn → Hiển thị bình thường
 
-### 📊 Analytics & Monitoring
+###  Analytics & Monitoring
 - TensorBoard integration
 - Comprehensive metrics (mAP, Precision, Recall, F1-Score)
 - Training visualization
@@ -56,7 +65,7 @@ Hệ thống báo cháy thông minh sử dụng:
 
 ---
 
-## 📁 Cấu Trúc Dự Án
+##  Cấu Trúc Dự Án
 
 ```
 HeThongBaoChay/
@@ -97,7 +106,7 @@ HeThongBaoChay/
 
 ---
 
-## 🚀 Cài Đặt Nhanh
+##  Cài Đặt Nhanh
 
 ### Bước 1: Cài Đặt Python Dependencies
 
@@ -144,7 +153,7 @@ flutter run
 
 ---
 
-## 📱 Hướng Dẫn Sử Dụng
+##  Hướng Dẫn Sử Dụng
 
 ### Camera Detection (Điện Thoại)
 
@@ -171,7 +180,7 @@ flutter run
 
 ---
 
-## 🔧 Cấu Hình ESP32-CAM
+##  Cấu Hình ESP32-CAM
 
 ### Bước 1: Upload Firmware
 
@@ -208,13 +217,13 @@ String _esp32IP = '192.168.1.100'; // ← THAY ĐỔI IP TẠI ĐÂY
 
 ---
 
-## 🔥 Cấu Hình Firebase (MIỄN PHÍ)
+##  Cấu Hình Firebase (MIỄN PHÍ)
 
 ### Chi Phí: **0 VNĐ**
 
-✅ Firebase Cloud Messaging (FCM): MIỄN PHÍ hoàn toàn  
-✅ Không cần thẻ tín dụng cho FCM  
-✅ Không có quota limits cho notifications
+ Firebase Cloud Messaging (FCM): MIỄN PHÍ hoàn toàn  
+ Không cần thẻ tín dụng cho FCM  
+ Không có quota limits cho notifications
 
 ### Bước 1: Tạo Firebase Project
 
@@ -294,10 +303,10 @@ python check_data.py
 ```
 
 Script này sẽ:
-- ✅ Kiểm tra cấu trúc dữ liệu
-- 📊 Phân tích phân bố classes
-- 🖼️ Hiển thị ảnh mẫu với labels
-- 📈 Tạo biểu đồ thống kê
+-  Kiểm tra cấu trúc dữ liệu
+-  Phân tích phân bố classes
+-  Hiển thị ảnh mẫu với labels
+-  Tạo biểu đồ thống kê
 
 ### Bước 2: Chọn Phương Pháp Training
 
@@ -305,28 +314,28 @@ Script này sẽ:
 ```bash
 python quick_train.py
 ```
-- ✅ Dễ sử dụng, setup tự động
-- ✅ Best practices được tích hợp sẵn
-- ✅ Batch size tự động tối ưu
-- ⏱️ Thời gian: 2-4 giờ
+-  Dễ sử dụng, setup tự động
+-  Best practices được tích hợp sẵn
+-  Batch size tự động tối ưu
+-  Thời gian: 2-4 giờ
 
 #### 🔬 Advanced Training (Cho chuyên gia)
 ```bash
 python train_yolo_model.py
 ```
-- 🚀 Hyperparameter optimization với Optuna
-- 🔥 Mixed precision training
-- 📊 TensorBoard integration
-- 🎯 Ensemble model support
-- ⏱️ Thời gian: 4-8 giờ
+-  Hyperparameter optimization với Optuna
+-  Mixed precision training
+-  TensorBoard integration
+-  Ensemble model support
+-  Thời gian: 4-8 giờ
 
-#### 📝 Simple Training (Cho việc học)
+####  Simple Training (Cho việc học)
 ```bash
 python simple_train.py
 ```
-- 🎓 Dành cho học tập
-- 📚 Code dễ hiểu
-- ⏱️ Thời gian: 1-2 giờ
+- Dành cho học tập
+- Code dễ hiểu
+- Thời gian: 1-2 giờ
 
 ### Cấu Hình Training
 
@@ -385,7 +394,7 @@ training_results_YYYYMMDD_HHMMSS/
 
 ---
 
-## 📡 API Documentation
+##  API Documentation
 
 ### Base URL
 ```
@@ -444,7 +453,7 @@ curl -X POST -F "file=@image.jpg" http://localhost:8000/predict_json/
   "has_fire": true,
   "has_smoke": false,
   "alert_level": "HIGH",
-  "message": "🔥 CẢNH BÁO: Phát hiện 1 điểm lửa!"
+  "message": " CẢNH BÁO: Phát hiện 1 điểm lửa!"
 }
 ```
 
@@ -455,7 +464,7 @@ curl -X POST -F "file=@video.mp4" http://localhost:8000/analyze_video/
 
 ---
 
-## 🔧 Troubleshooting
+##  Troubleshooting
 
 ### Lỗi Kết Nối API
 
@@ -508,7 +517,7 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 ---
 
-## 📚 Tài Liệu Kỹ Thuật
+##  Tài Liệu Kỹ Thuật
 
 ### Architecture
 
@@ -555,7 +564,7 @@ Duration(milliseconds: 1000)  // thay vì 500ms
 
 ---
 
-## 🎯 Tips Cải Thiện Model
+##  Tips Cải Thiện Model
 
 1. **Tăng dữ liệu**: Thêm ảnh training đa dạng
 2. **Data Augmentation**: Đã được tích hợp sẵn trong YOLOv8
@@ -565,7 +574,7 @@ Duration(milliseconds: 1000)  // thay vì 500ms
 
 ---
 
-## 📞 Hỗ Trợ
+##  Hỗ Trợ
 
 ### Báo Lỗi
 - Tạo issue trên GitHub với log chi tiết
@@ -579,13 +588,13 @@ Duration(milliseconds: 1000)  // thay vì 500ms
 
 ---
 
-## 📄 License
+##  License
 
 MIT License - Xem file LICENSE để biết thêm chi tiết.
 
 ---
 
-## 🎉 Quick Start Commands
+##  Quick Start Commands
 
 ```bash
 # 1. Setup
@@ -613,4 +622,4 @@ flutter run
 
 ---
 
-**🔥 Happy Training! Chúc bạn có hệ thống báo cháy thông minh hoàn chỉnh! 💨**
+** Happy Training! Chúc bạn có hệ thống báo cháy thông minh hoàn chỉnh! **
