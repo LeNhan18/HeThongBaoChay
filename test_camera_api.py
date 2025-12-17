@@ -11,14 +11,14 @@ import json
 # CONFIG
 # ======================
 ESP32_IP = "172.20.10.2"     # IP ESP32-CAM
-BACKEND_URL = "http://172.20.10.4:8000"  # Backend server
+BACKEND_URL = "http://172.20.10.5:8000"  # Backend server
 MODEL_PATH = "training_results_20251125_021040/advanced_fire_smoke_yolo11s/weights/best.pt"        # model YOLO của bạn
 CONF_THRESHOLD = 0.25
 
 STREAM_URL = f"http://{ESP32_IP}:81/stream"
 
 # Notification settings
-NOTIFICATION_COOLDOWN = 10  # seconds between notifications (thông báo mỗi 10s khi có lửa liên tục)
+NOTIFICATION_COOLDOWN = 3  # seconds between notifications (thông báo mỗi 10s khi có lửa liên tục)
 last_notification_time = 0
 fire_detection_count = 0
 
@@ -37,10 +37,10 @@ def send_fire_alert(fire_count, smoke_count, confidence):
     
     current_time = time.time()
     time_since_last = current_time - last_notification_time
-    
+
     if time_since_last < NOTIFICATION_COOLDOWN:
         remaining = NOTIFICATION_COOLDOWN - time_since_last
-        print(f"⏳ Cooldown: {remaining:.1f}s còn lại trước thông báo tiếp")
+        print(f" Cooldown: {remaining:.1f}s còn lại trước thông báo tiếp")
         return False
     
     try:
@@ -51,7 +51,7 @@ def send_fire_alert(fire_count, smoke_count, confidence):
             "smoke_count": smoke_count,
             "confidence": confidence,
             "timestamp": datetime.now().isoformat(),
-            "message": f"🔥 CẢNH BÁO: Phát hiện {fire_count} điểm lửa, {smoke_count} điểm khói từ ESP32-CAM!"
+            "message": f" CẢNH BÁO: Phát hiện {fire_count} điểm lửa, {smoke_count} điểm khói từ ESP32-CAM!"
         }
         
         response = requests.post(
@@ -64,14 +64,14 @@ def send_fire_alert(fire_count, smoke_count, confidence):
             last_notification_time = current_time
             global fire_detection_count
             fire_detection_count += 1
-            print(f"🔔 THÔNG BÁO #{fire_detection_count}: Lửa={fire_count}, Khói={smoke_count}")
+            print(f" THÔNG BÁO #{fire_detection_count}: Lửa={fire_count}, Khói={smoke_count}")
             return True
         else:
-            print(f"❌ Lỗi gửi thông báo: {response.status_code}")
+            print(f" Lỗi gửi thông báo: {response.status_code}")
             return False
             
     except Exception as e:
-        print(f"❌ Lỗi kết nối backend: {e}")
+        print(f" Lỗi kết nối backend: {e}")
         return False
 
 # ======================
@@ -105,7 +105,7 @@ frame_count = 0
 while True:
     ret, frame = cap.read()
     if not ret:
-        print("⚠ Không đọc được frame, chờ ESP32...")
+        print("Không đọc được frame, chờ ESP32...")
         time.sleep(0.1)
         continue
 

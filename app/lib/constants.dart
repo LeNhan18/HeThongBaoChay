@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 
 // 🤖 Auto-detect best host based on platform
 const String apiBaseUrl = 'http://192.168.2.29:8000'; // Server IP
-const String API_BASE_URL = 'http://172.20.10.4:8000'; // Backend API endpoints
+const String API_BASE_URL = 'http://172.20.10.5:8000'; // Backend API endpoints
 const String ESP32_CONNECT_ENDPOINT = '/esp32/connect';
 const String ESP32_CAPTURE_ENDPOINT = '/esp32/capture';
 const String ESP32_STREAM_ENDPOINT = '/esp32/stream';

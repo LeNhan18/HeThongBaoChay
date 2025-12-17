@@ -19,28 +19,44 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
+  // Initialize Firebase với error handling riêng
   try {
-    // Initialize Firebase (FREE) - with error handling
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    print('Firebase initialized successfully');
-
-    // Initialize notification service with Firebase FCM
-    await NotificationService().init();
-    print('Notification service initialized');
-
-    // Register FCM token with backend
-    await AlertService().registerFCMToken();
-    print('FCM token registered');
-
-    // Start polling with longer interval since FCM is mock
-    AlertService().startLiveAlertPolling();
-    print('Live alert polling started (backup for mock FCM)');
+    print(' Firebase initialized successfully');
   } catch (e) {
-    print('Firebase initialization error: $e');
-    // Continue without Firebase for basic app functionality
+    print(' Firebase initialization error: $e');
+    print(' App will continue without Firebase features');
   }
+
+  // Initialize notification service (có thể hoạt động không cần Firebase)
+  try {
+    await NotificationService().init();
+    print(' Notification service initialized');
+  } catch (e) {
+    print(' Notification service init error: $e');
+    print(' App will continue without notifications');
+  }
+
+  // Register FCM token với backend (có error handling riêng trong service)
+  try {
+    await AlertService().registerFCMToken();
+    print(' FCM token registration attempted');
+  } catch (e) {
+    print(' FCM token registration error: $e');
+  }
+
+  // Auto-start polling để nhận alerts từ ESP32 (không block)
+  // Delay một chút để đảm bảo app đã khởi động hoàn toàn
+  Future.delayed(Duration(seconds: 2), () {
+    try {
+      AlertService().startLiveAlertPolling();
+      print(' Alert polling started automatically');
+    } catch (e) {
+      print('Alert polling start error: $e');
+    }
+  });
 
   runApp(const FireAlertApp());
 }
