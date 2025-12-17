@@ -4,7 +4,9 @@ import time
 import tempfile
 import shutil
 import logging
-from datetime import datetime
+import requests
+import ipaddress
+from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from collections import deque
 import cv2
@@ -13,6 +15,9 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
+import firebase_admin
+from firebase_admin import credentials, messaging
+
 
 # =============================================================================
 # == Configuration ============================================================
@@ -24,15 +29,45 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-MODEL_PATH = r'e:\HeThongBaoChay\training_results_20251125_021040\advanced_fire_smoke_yolo11s\weights\best.pt'
+# Model path - can be overridden by environment variable
+MODEL_PATH = os.getenv(
+    'MODEL_PATH',
+    r'e:\HeThongBaoChay\training_results_20251125_021040\advanced_fire_smoke_yolo11s\weights\best.pt'
+)
 
 API_TITLE = "Fire and Smoke Detection API"
 API_VERSION = "2.0"
 DEFAULT_CONFIDENCE = 0.25
 
+# File size limits
+MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_VIDEO_SIZE = 100 * 1024 * 1024  # 100MB
+
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 480
 CAMERA_FPS = 30
+
+# ============================================================================
+# Firebase Configuration
+# ============================================================================
+
+# Initialize Firebase Admin
+FIREBASE_ENABLED = False
+try:
+    # Note: google-services.json is for client apps, not admin SDK
+    # For admin SDK, we need a service account key
+    firebase_key_path = r'e:\HeThongBaoChay\firebase-service-account.json'
+    if os.path.exists(firebase_key_path):
+        cred = credentials.Certificate(firebase_key_path)
+        firebase_admin.initialize_app(cred)
+        logger.info(" Firebase Admin SDK initialized successfully")
+        FIREBASE_ENABLED = True
+    else:
+        logger.warning(" Firebase service account key not found - Using mock notifications")
+        FIREBASE_ENABLED = False
+except Exception as e:
+    logger.error(f" Firebase initialization failed: {e} - Using mock notifications")
+    FIREBASE_ENABLED = False
 
 # ============================================================================
 # Global State
@@ -46,6 +81,14 @@ camera_stats: Dict[str, Any] = {
     "detections": 0,
     "start_time": None
 }
+
+# Mobile alerts queue and FCM tokens
+mobile_alerts: List[Dict] = []
+fcm_tokens: List[str] = []  # Store FCM tokens from mobile apps
+
+# Alert storage for real-time notifications
+pending_alerts: List[Dict[str, Any]] = []
+alert_counter: int = 0
 
 # Vietnamese class name mapping
 VIETNAMESE_LABELS = {
@@ -98,6 +141,25 @@ def validate_model_loaded() -> None:
         raise HTTPException(
             status_code=500,
             detail="Model is not loaded"
+        )
+
+def validate_file_size(file_size: int, max_size: int, file_type: str = "file") -> None:
+    """Validate file size."""
+    if file_size > max_size:
+        max_size_mb = max_size / (1024 * 1024)
+        raise HTTPException(
+            status_code=413,
+            detail=f"{file_type.capitalize()} too large. Maximum size: {max_size_mb:.1f}MB"
+        )
+
+def validate_ip_address(ip: str) -> None:
+    """Validate IP address format."""
+    try:
+        ipaddress.ip_address(ip)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid IP address format: {ip}"
         )
 
 def read_image_bytes(file_content: bytes) -> Optional[np.ndarray]:
@@ -155,8 +217,6 @@ def count_detections_by_class(detections: List[Dict]) -> Dict[str, int]:
 
 def plot_with_vietnamese_labels(result, img):
     """Custom plot function with Vietnamese labels and enhanced visualization."""
-    import cv2
-    
     # Make sure we have a copy to work with
     annotated_img = img.copy()
     
@@ -165,7 +225,8 @@ def plot_with_vietnamese_labels(result, img):
         
         for i, box in enumerate(result.boxes):
             # Get coordinates
-            x1, y1, x2, y2 = box.xyxy[0].tolist()
+            # lấy toạ độ
+            x1, y1, x2, y2 = box.xyxy[0].tolist() #x1,y1 top-left corner, x2,y2 bottom-right corner
             x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
             
             # Get class info
@@ -175,6 +236,7 @@ def plot_with_vietnamese_labels(result, img):
             class_name_vi = VIETNAMESE_LABELS.get(class_name_en.lower(), class_name_en)
             
             # Enhanced colors for better visibility
+            # Màu sắc nâng cao để dễ quan sát hơn
             if class_name_en.lower() == 'fire':
                 color = (0, 0, 255)  # Red for fire (BGR format)
                 text_color = (255, 255, 255)  # White text
@@ -183,10 +245,12 @@ def plot_with_vietnamese_labels(result, img):
                 text_color = (255, 255, 255)  # White text
             
             # Draw thicker bounding box for better visibility
+            # Vẽ hộp giới hạn dày hơn để dễ quan sát hơn
             thickness = max(2, int((img.shape[0] + img.shape[1]) / 600))
             cv2.rectangle(annotated_img, (x1, y1), (x2, y2), color, thickness)
             
             # Draw filled corner markers for extra visibility
+            # Vẽ các điểm đánh dấu góc được tô màu đầy đủ để dễ quan hát hơn
             corner_size = thickness * 3
             cv2.rectangle(annotated_img, (x1, y1), (x1 + corner_size, y1 + corner_size), color, -1)
             cv2.rectangle(annotated_img, (x2 - corner_size, y1), (x2, y1 + corner_size), color, -1)
@@ -212,13 +276,27 @@ def plot_with_vietnamese_labels(result, img):
                 label_y = y1 + text_height + 10
             
             # Draw semi-transparent background for better text visibility
+            # vẽ nền bán trong suốt để dễ nhìn chữ hơn
+
             label_bg_points = np.array([
-                [x1, label_y - text_height - 5],
-                [x1 + text_width + 10, label_y - text_height - 5],
-                [x1 + text_width + 10, label_y + baseline + 5],
-                [x1, label_y + baseline + 5]
-            ], np.int32)
-            
+                #Điểm 1 góc trái trên của nền label
+                #x1 :căn trái theo bounding box
+                #label_y - text_height -5 : chiều cao chữ + 5px padding phía trên text 5px
+                [x1 ,label_y - text_height - 5],
+                #Điểm 2 góc phải trên của nền label
+                #x1 + text_width +10 : chiều rộng chữ + 10px padding phía phải text
+                #label_y - text_height -5 : chiều cao chữ + 5px padding phía trên text
+                [x1 +text_width + 10 ,label_y - text_height - 5],
+                #Điểm 3 góc phải dưới của nền label
+                #x1 + text_width +10 : chiều rộng chữ + 10px padding phía phải text
+                #label_y + baseline +5 : chiều cao chữ + phần dưới chữ + 5px padding phía dưới text
+                [x1 +text_width + 10 ,label_y + baseline + 5],
+                #Điểm 4 góc trái dưới của nền label
+                #x1 :căn trái theo bounding box
+                #label_y + baseline +5 : chiều cao chữ + phần dưới chữ + 5px padding phía dưới text
+                [x1 ,label_y + baseline + 5]
+            ],np.int32)
+
             # Create overlay for transparency
             overlay = annotated_img.copy()
             cv2.fillPoly(overlay, [label_bg_points], color)
@@ -267,12 +345,14 @@ def root():
         "endpoints": {
             "health": "/health/",
             "predict_image": "/predict/",
-            "predict_json": "/predict_json/",
             "analyze_video": "/analyze_video/",
             "camera_start": "/camera/start/",
             "camera_stream": "/camera/stream/",
             "camera_stop": "/camera/stop/",
-            "camera_stats": "/camera/stats/",
+            "mobile_camera_detect": "/mobile/camera/detect",
+            "esp32_capture": "/esp32/capture",
+            "esp32_capture_with_boxes": "/esp32/capture_with_boxes",
+            "mobile_alerts": "/mobile/get_alerts",
             "documentation": "/docs"
         }
     }
@@ -287,16 +367,33 @@ def health_check():
         "version": API_VERSION
     }
 
+@app.get("/test/")
+def test_connection():
+    """Simple test endpoint for debugging network connectivity."""
+    logger.info("Test endpoint called")
+    return {
+        "message": "Connection successful!",
+        "timestamp": datetime.now().isoformat(),
+        "server_ip": "192.168.1.149",
+        "server_port": 8000
+    }
+
 # ============================================================================
 # ========= Image Detection Endpoints ========================================
 # ============================================================================
 
+MAX_SIZE = 1024 * 1024 * 10 # 10MB
 @app.post("/predict/")
 def predict_image_with_annotation(
     file: UploadFile = File(...),
     confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
 ):
-
+    if file.size > MAX_SIZE:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "File size exceeds maximum allowed size of 10MB"}
+        )
+    
     validate_model_loaded()
     
     if not file.filename.endswith(('.jpg', '.jpeg', '.png')):
@@ -345,43 +442,6 @@ def predict_image_with_annotation(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/predict_json/")
-def predict_image_json(
-    file: UploadFile = File(...),
-    confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
-):
-    validate_model_loaded()
-    
-    if not file.filename.endswith(('.jpg', '.jpeg', '.png')):
-        return JSONResponse(
-            status_code=400,
-            content={"error": "Unsupported format. Supported: JPG, PNG"}
-        )
-    
-    try:
-        contents = file.file.read()
-        img = read_image_bytes(contents)
-        if img is None:
-            return JSONResponse(
-                status_code=400,
-                content={"error": "Failed to read image file"}
-            )
-        height, width = img.shape[:2]
-        results = model(img, conf=confidence)
-        result = results[0]
-        detections = extract_detections(result)
-        summary = count_detections_by_class(detections)
-        summary["total"] = len(detections)
-        return JSONResponse(content={
-            "timestamp": datetime.now().isoformat(),
-            "image_size": {"width": width, "height": height},
-            "detections": detections,
-            "summary": summary
-        })
-    except Exception as e:
-        logger.error(f"Error in predict_image_json: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 # ============================================================================
 # Video Analysis Endpoint
 # ============================================================================
@@ -391,19 +451,7 @@ def analyze_video_file(
     file: UploadFile = File(...),
     confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
 ):
-    """
-    Analyze video file for fire and smoke detection.
-    
-    Processes each frame with YOLO model and returns annotated video file.
-    
-    Args:
-        file: Video file (MP4, AVI, MOV, or MKV format)
-        confidence: Detection confidence threshold (0-1), default 0.25
-    
-    Returns:
-        MP4 video with detection bounding boxes drawn on each frame
-        Headers include processing statistics
-    """
+
     validate_model_loaded()
     
     if not file.filename.endswith(('.mp4', '.avi', '.mov', '.mkv')):
@@ -415,9 +463,13 @@ def analyze_video_file(
     temp_dir = tempfile.mkdtemp()
     
     try:
+        # Read file content first to check size
+        file_content = file.file.read()
+        validate_file_size(len(file_content), MAX_VIDEO_SIZE, "video")
+        
         input_path = os.path.join(temp_dir, file.filename)
         with open(input_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(file_content)
         
         cap = cv2.VideoCapture(input_path)
         if not cap.isOpened():
@@ -465,10 +517,34 @@ def analyze_video_file(
             if not ret:
                 break
             
-            results = model(frame, conf=confidence, verbose=False)
+            # Resize frame to standard size for better AI detection
+            # Keep aspect ratio and pad if necessary
+            original_height, original_width = frame.shape[:2]
+            target_size = 640  # YOLO standard input size
             
-            # Use custom Vietnamese plot function instead of default plot()
-            annotated_frame = plot_with_vietnamese_labels(results[0], frame)
+            # Calculate scaling factor to fit within target size
+            scale = min(target_size / original_width, target_size / original_height)
+            new_width = int(original_width * scale)
+            new_height = int(original_height * scale)
+            
+            # Resize frame
+            resized_frame = cv2.resize(frame, (new_width, new_height))
+            
+            # Create padded frame (black padding)
+            padded_frame = np.zeros((target_size, target_size, 3), dtype=np.uint8)
+            y_offset = (target_size - new_height) // 2
+            x_offset = (target_size - new_width) // 2
+            padded_frame[y_offset:y_offset+new_height, x_offset:x_offset+new_width] = resized_frame
+
+            # Run detection on processed frame
+            results = model(padded_frame, conf=confidence, verbose=False)
+            
+            # Use custom Vietnamese plot function on the processed frame
+            annotated_frame = plot_with_vietnamese_labels(results[0], padded_frame)
+            
+            # Resize back to original video dimensions for output
+            if annotated_frame.shape[:2] != (frame_height, frame_width):
+                annotated_frame = cv2.resize(annotated_frame, (frame_width, frame_height))
             
             out.write(annotated_frame)
             
@@ -562,7 +638,8 @@ def camera_feed_generator(camera_index: int = 0, confidence: float = DEFAULT_CON
                 break
             
             results = model(frame, conf=confidence)
-            annotated_frame = results[0].plot()
+            # Use Vietnamese labels for consistency
+            annotated_frame = plot_with_vietnamese_labels(results[0], frame)
             
             if results[0].boxes is not None:
                 num_detections = len(results[0].boxes)
@@ -646,26 +723,6 @@ async def stop_camera():
     })
 
 
-@app.get("/camera/stats/")
-async def get_camera_stats():
-    if not camera_stats["start_time"]:
-        return JSONResponse(content={"status": "Camera not started"})
-    
-    elapsed_time = time.time() - camera_stats["start_time"]
-    fps = camera_stats["frames"] / elapsed_time if elapsed_time > 0 else 0
-    avg_detections = camera_stats["detections"] / max(1, camera_stats["frames"])
-    
-    return JSONResponse(content={
-        "active": camera_active,
-        "frames_processed": camera_stats["frames"],
-        "total_detections": camera_stats["detections"],
-        "elapsed_time": f"{elapsed_time:.2f}s",
-        "fps": f"{fps:.2f}",
-        "avg_detections_per_frame": round(avg_detections, 3),
-        "recent_detections": list(detection_results)
-    })
-
-
 # ============================================================================
 # Mobile Camera Real-time Detection Endpoints
 # ============================================================================
@@ -714,12 +771,6 @@ async def mobile_camera_detect(
         if camera_stats["start_time"] is None:
             camera_stats["start_time"] = time.time()
         
-        # Annotate image with Vietnamese labels
-        annotated_img = plot_with_vietnamese_labels(result, img)
-        
-        # Encode annotated image
-        annotated_bytes = encode_image_to_jpeg(annotated_img)
-        
         return JSONResponse(content={
             "success": True,
             "timestamp": detection_result["timestamp"],
@@ -729,8 +780,7 @@ async def mobile_camera_detect(
             "has_fire": detection_count["fire"] > 0,
             "has_smoke": detection_count["smoke"] > 0,
             "alert_level": get_alert_level(detection_count),
-            "message": get_detection_message(detection_count),
-            "annotated_image_size": len(annotated_bytes)
+            "message": get_detection_message(detection_count)
         })
         
     except Exception as e:
@@ -741,68 +791,172 @@ async def mobile_camera_detect(
         )
 
 
-@app.post("/mobile/camera/detect_with_image")
-async def mobile_camera_detect_with_image(
-    file: UploadFile = File(...),
+# ============================================================================
+# ESP32-CAM Streaming Endpoints
+# ============================================================================
+
+async def _esp32_capture_helper(
+    esp32_ip: str,
+    confidence: float,
+    return_image: bool = False
+) -> tuple[Optional[np.ndarray], List[Dict[str, Any]], Dict[str, int]]:
+    """
+    Helper function to capture and analyze ESP32-CAM image.
+    
+    Args:
+        esp32_ip: IP address of ESP32-CAM device
+        confidence: Detection confidence threshold
+        return_image: If True, return annotated image
+    
+    Returns:
+        Tuple of (annotated_image or None, detections, detection_count)
+    """
+    # Validate IP address
+    validate_ip_address(esp32_ip)
+    
+    # Capture image from ESP32-CAM
+    response = requests.get(
+        f"http://{esp32_ip}/capture",
+        headers={'Accept': 'image/jpeg'},
+        timeout=10
+    )
+    
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to capture from ESP32-CAM: {response.status_code}"
+        )
+    
+    # Process captured image
+    img_bytes = response.content
+    img = read_image_bytes(img_bytes)
+    
+    if img is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image data from ESP32-CAM"
+        )
+    
+    # Run YOLO detection
+    results = model(img, conf=confidence, verbose=False)
+    result = results[0]
+    
+    # Extract detections
+    detections = extract_detections(result)
+    detection_count = count_detections_by_class(detections)
+    
+    # Return annotated image if requested
+    annotated_img = None
+    if return_image:
+        annotated_img = plot_with_vietnamese_labels(result, img)
+    
+    return annotated_img, detections, detection_count
+
+
+@app.post("/esp32/capture")
+async def esp32_capture_and_analyze(
+    esp32_ip: str = Query(..., regex=r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'),
     confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
 ):
     """
-    Mobile camera detection endpoint that returns annotated image.
+    Capture image from ESP32-CAM and analyze for fire/smoke detection.
+    
+    Args:
+        esp32_ip: IP address of ESP32-CAM device
+        confidence: Detection confidence threshold
+    
+    Returns:
+        JSON with detection results and image analysis
     """
     validate_model_loaded()
     
     try:
-        # Read image from mobile camera
-        file_content = await file.read()
-        img = read_image_bytes(file_content)
+        _, detections, detection_count = await _esp32_capture_helper(
+            esp32_ip, confidence, return_image=False
+        )
         
-        if img is None:
+        # Calculate fire detection
+        fire_detected = detection_count["fire"] > 0 or detection_count["smoke"] > 0
+        max_confidence = max([d["confidence"] for d in detections]) if detections else 0.0
+        
+        return JSONResponse(content={
+            "timestamp": datetime.now().isoformat(),
+            "esp32_ip": esp32_ip,
+            "fire_detected": fire_detected,
+            "confidence": max_confidence,
+            "detections": detections,
+            "fire_count": detection_count["fire"],
+            "smoke_count": detection_count["smoke"],
+            "total_detections": len(detections),
+            "alert_level": get_alert_level(detection_count),
+            "message": get_detection_message(detection_count),
+            "has_bounding_boxes": len(detections) > 0
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"ESP32 capture and analyze error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"ESP32 analysis failed: {str(e)}"
+        )
+
+
+@app.post("/esp32/capture_with_boxes")
+async def esp32_capture_with_bounding_boxes(
+    esp32_ip: str = Query(..., regex=r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'),
+    confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
+):
+    """
+    Capture image from ESP32-CAM and return annotated image with bounding boxes.
+    
+    Args:
+        esp32_ip: IP address of ESP32-CAM device
+        confidence: Detection confidence threshold
+    
+    Returns:
+        Annotated image with Vietnamese bounding boxes
+    """
+    validate_model_loaded()
+    
+    try:
+        annotated_img, detections, detection_count = await _esp32_capture_helper(
+            esp32_ip, confidence, return_image=True
+        )
+        
+        if annotated_img is None:
             raise HTTPException(
-                status_code=400,
-                detail="Invalid image format or corrupted image"
+                status_code=500,
+                detail="Failed to generate annotated image"
             )
-        
-        # Run detection
-        results = model(img, conf=confidence, verbose=False)
-        result = results[0]
-        
-        # Extract detections
-        detections = extract_detections(result)
-        detection_count = count_detections_by_class(detections)
-        
-        # Annotate image with Vietnamese labels
-        annotated_img = plot_with_vietnamese_labels(result, img)
         
         # Encode annotated image
         annotated_bytes = encode_image_to_jpeg(annotated_img)
         
-        # Store detection result
-        detection_result = {
-            "timestamp": datetime.now().isoformat(),
-            "detections": detections,
-            "count": detection_count
-        }
-        detection_results.append(detection_result)
-        
-        # Return annotated image as response
         return StreamingResponse(
             io.BytesIO(annotated_bytes),
             media_type="image/jpeg",
             headers={
+                "X-ESP32-IP": esp32_ip,
                 "X-Detection-Count": str(len(detections)),
                 "X-Fire-Count": str(detection_count["fire"]),
                 "X-Smoke-Count": str(detection_count["smoke"]),
                 "X-Alert-Level": get_alert_level(detection_count),
                 "X-Has-Fire": str(detection_count["fire"] > 0),
-                "X-Has-Smoke": str(detection_count["smoke"] > 0)
+                "X-Has-Smoke": str(detection_count["smoke"] > 0),
+                "X-Max-Confidence": str(max([d["confidence"] for d in detections]) if detections else 0.0),
+                "X-Timestamp": datetime.now().isoformat()
             }
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error in mobile camera detection with image: {e}")
+        logger.error(f"ESP32 capture with boxes error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Detection failed: {str(e)}"
+            detail=f"ESP32 bounding box analysis failed: {str(e)}"
         )
 
 
@@ -819,10 +973,246 @@ def get_alert_level(detection_count: Dict[str, int]) -> str:
 def get_detection_message(detection_count: Dict[str, int]) -> str:
     """Get detection message in Vietnamese."""
     if detection_count["fire"] > 0 and detection_count["smoke"] > 0:
-        return f"⚠️ CẢNH BÁO: Phát hiện {detection_count['fire']} điểm lửa và {detection_count['smoke']} điểm khói!"
+        return f" CẢNH BÁO: Phát hiện {detection_count['fire']} điểm lửa và {detection_count['smoke']} điểm khói!"
     elif detection_count["fire"] > 0:
-        return f"🔥 CẢNH BÁO: Phát hiện {detection_count['fire']} điểm lửa!"
+        return f"CẢNH BÁO: Phát hiện {detection_count['fire']} điểm lửa!"
     elif detection_count["smoke"] > 0:
-        return f"💨 CẢNH BÁO: Phát hiện {detection_count['smoke']} điểm khói!"
+        return f"CẢNH BÁO: Phát hiện {detection_count['smoke']} điểm khói!"
     else:
-        return "✅ Không phát hiện lửa hoặc khói"
+        return "Không phát hiện lửa hoặc khói"
+
+
+def send_fcm_notification(title: str, body: str, data: Dict[str, str] = None):
+    """Send FCM push notification to all registered devices"""
+    if not FIREBASE_ENABLED:
+        # Mock notification for testing
+        logger.info(f"📱 MOCK FCM: {title} - {body}")
+        logger.info(f"📱 MOCK DATA: {data}")
+        return True
+        
+    if not fcm_tokens:
+        logger.warning("No FCM tokens registered")
+        return False
+    
+    try:
+        # Create the message
+        message = messaging.MulticastMessage(
+            notification=messaging.Notification(
+                title=title,
+                body=body,
+            ),
+            data=data or {},
+            tokens=fcm_tokens,
+        )
+        
+        # Send the message
+        response = messaging.send_multicast(message)
+        
+        success_count = response.success_count
+        failure_count = response.failure_count
+        
+        logger.info(f"📱 FCM sent: {success_count} success, {failure_count} failed")
+        
+        # Remove invalid tokens
+        if response.failure_count > 0:
+            failed_tokens = []
+            for idx, resp in enumerate(response.responses):
+                if not resp.success:
+                    failed_tokens.append(fcm_tokens[idx])
+                    logger.warning(f"Failed token: {resp.exception}")
+            
+            # Remove failed tokens
+            for token in failed_tokens:
+                if token in fcm_tokens:
+                    fcm_tokens.remove(token)
+        
+        return success_count > 0
+        
+    except Exception as e:
+        logger.error(f"FCM send error: {e}")
+        return False
+
+
+# =============================================================================
+# Mobile Alert Endpoints
+# =============================================================================
+
+@app.post("/mobile/register_fcm_token")
+async def register_fcm_token(token_data: dict):
+    """Register FCM token for push notifications"""
+    try:
+        token = token_data.get('token')
+        if not token:
+            raise HTTPException(status_code=400, detail="FCM token is required")
+        
+        # Add token if not already exists
+        if token not in fcm_tokens:
+            fcm_tokens.append(token)
+            logger.info(f"📱 New FCM token registered: {token[:20]}...")
+        
+        return {
+            "status": "success",
+            "message": "FCM token registered",
+            "total_tokens": len(fcm_tokens)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error registering FCM token: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/mobile/send_alert")
+async def send_mobile_alert(alert_data: dict):
+    """
+    Receive alert from external scripts and forward as notification
+    
+    Args:
+        alert_data: Dict containing alert information
+    
+    Returns:
+        Success/failure response
+    """
+    global pending_alerts, alert_counter
+    
+    try:
+        logger.info(f"Received alert from {alert_data.get('source', 'unknown')}")
+        
+        # Extract alert info
+        fire_count = alert_data.get('fire_count', 0)
+        smoke_count = alert_data.get('smoke_count', 0) 
+        esp32_ip = alert_data.get('esp32_ip', 'unknown')
+        confidence = alert_data.get('confidence', 0)
+        message = alert_data.get('message', 'Phát hiện lửa/khói')
+        
+        # Log the alert
+        logger.warning(f"🔥 FIRE ALERT: Fire={fire_count}, Smoke={smoke_count}, ESP32={esp32_ip}, Conf={confidence:.2%}")
+        
+        # Send FCM push notification
+        fcm_title = "🔥 CẢNH BÁO CHÁY!"
+        fcm_body = f"Phát hiện {fire_count} lửa, {smoke_count} khói từ ESP32-CAM ({esp32_ip})"
+        fcm_data = {
+            "type": "fire_alert",
+            "fire_count": str(fire_count),
+            "smoke_count": str(smoke_count),
+            "esp32_ip": esp32_ip,
+            "confidence": f"{confidence:.2%}",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        fcm_sent = send_fcm_notification(fcm_title, fcm_body, fcm_data)
+        
+        # Create alert for mobile app
+        alert_counter += 1
+        mobile_alert = {
+            "id": alert_counter,
+            "title": "🔥 CẢNH BÁO CHÁY - Live Detection",
+            "body": f"Phát hiện {fire_count} lửa, {smoke_count} khói từ ESP32-CAM ({esp32_ip})",
+            "fire_count": fire_count,
+            "smoke_count": smoke_count,
+            "confidence": confidence,
+            "esp32_ip": esp32_ip,
+            "source": alert_data.get('source', 'Live Detection'),
+            "timestamp": datetime.now().isoformat(),
+            "vietnamese_message": message,
+            "read": False
+        }
+        
+        # Add to pending alerts for app to fetch
+        pending_alerts.append(mobile_alert)
+        
+        # Keep only last 50 alerts
+        if len(pending_alerts) > 50:
+            pending_alerts = pending_alerts[-50:]
+        
+        
+        logger.info(f"📱 Alert added to mobile queue: ID={alert_counter}")
+        
+        response_data = {
+            "status": "success",
+            "message": "Alert received and queued for mobile app",
+            "alert_id": alert_counter,
+            "timestamp": datetime.now().isoformat(),
+            "processed_alert": mobile_alert
+        }
+        
+        return JSONResponse(content=response_data, status_code=200)
+        
+    except Exception as e:
+        logger.error(f"Error processing alert: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to process alert: {str(e)}"
+        )
+
+
+@app.get("/mobile/get_alerts")
+async def get_mobile_alerts(unread_only: bool = Query(False)):
+    """
+    Get pending alerts for mobile app
+    
+    Args:
+        unread_only: If True, return only unread alerts
+    
+    Returns:
+        List of alerts
+    """
+    global pending_alerts
+    
+    try:
+        if unread_only:
+            alerts = [alert for alert in pending_alerts if not alert.get('read', False)]
+        else:
+            alerts = pending_alerts.copy()
+        
+        return JSONResponse(content={
+            "status": "success",
+            "count": len(alerts),
+            "alerts": alerts
+        }, status_code=200)
+        
+    except Exception as e:
+        logger.error(f"Error fetching alerts: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch alerts: {str(e)}"
+        )
+
+
+@app.post("/mobile/mark_alert_read")
+async def mark_alert_read(request_data: dict):
+    """
+    Mark an alert as read
+    
+    Args:
+        request_data: Dict containing alert_id to mark as read
+    
+    Returns:
+        Success response
+    """
+    global pending_alerts
+    
+    try:
+        alert_id = request_data.get('alert_id')
+        if alert_id is None:
+            raise HTTPException(status_code=400, detail="alert_id is required")
+        
+        for alert in pending_alerts:
+            if alert['id'] == alert_id:
+                alert['read'] = True
+                logger.info(f"Alert {alert_id} marked as read")
+                return JSONResponse(content={
+                    "status": "success",
+                    "message": f"Alert {alert_id} marked as read"
+                }, status_code=200)
+        
+        return JSONResponse(content={
+            "status": "error",
+            "message": f"Alert {alert_id} not found"
+        }, status_code=404)
+        
+    except Exception as e:
+        logger.error(f"Error marking alert as read: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to mark alert as read: {str(e)}"
+        )
+

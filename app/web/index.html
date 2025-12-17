@@ -29,8 +29,26 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>app</title>
+  <title>Hệ Thống Báo Cháy</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Firebase Configuration for Web -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging-compat.js"></script>
+  <script>
+    // Firebase config từ google-services.json
+    const firebaseConfig = {
+      apiKey: "AIzaSyD-rGTIQs-BVDtzUgfFT1jFhLdamNRfaSI",
+      authDomain: "hethongbaochay-56774.firebaseapp.com",
+      projectId: "hethongbaochay-56774",
+      storageBucket: "hethongbaochay-56774.firebasestorage.app",
+      messagingSenderId: "323150359622",
+      appId: "1:323150359622:android:0ba081be5ca07cb7c2ae47"
+    };
+    
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

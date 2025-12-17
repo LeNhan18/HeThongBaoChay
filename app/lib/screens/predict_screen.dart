@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
-import 'package:glassmorphism/glassmorphism.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'dart:io' show Platform;
+import 'dart:typed_data';
 import '../services/prediction_service.dart';
 import '../services/notification_service.dart';
+import '../utils/platform_utils.dart' as platform_utils;
+import '../utils/network_utils.dart';
+import '../config/api_config.dart';
+
+// Platform-specific imports
+import 'dart:io' as io if (dart.library.io) 'dart:io';
 
 class PredictScreen extends StatefulWidget {
   const PredictScreen({super.key});
@@ -20,7 +26,7 @@ class _PredictScreenState extends State<PredictScreen> {
   final PredictionService _predictionService = PredictionService();
   final ImagePicker _picker = ImagePicker();
 
-  File? _selectedFile;
+  dynamic _selectedFile;
   String? _fileType;
   bool _isProcessing = false;
   Map<String, dynamic>? _predictionResult;
@@ -37,7 +43,8 @@ class _PredictScreenState extends State<PredictScreen> {
       final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
       if (image != null) {
         setState(() {
-          _selectedFile = File(image.path);
+          _selectedFile =
+              image; // Always use XFile for cross-platform compatibility
           _fileType = 'image';
           _predictionResult = null;
           _videoController?.dispose();
@@ -51,23 +58,84 @@ class _PredictScreenState extends State<PredictScreen> {
 
   Future<void> _pickVideo() async {
     try {
+      if (kIsWeb) {
+        _showError(
+          'Chức năng video chưa hỗ trợ đầy đủ trên web browser. Vui lòng sử dụng ứng dụng mobile để có trải nghiệm tốt nhất.',
+        );
+        return;
+      }
+
       final XFile? video = await _picker.pickVideo(source: ImageSource.gallery);
       if (video != null) {
-        final file = File(video.path);
         setState(() {
-          _selectedFile = file;
+          _selectedFile = video;
           _fileType = 'video';
           _predictionResult = null;
         });
 
         _videoController?.dispose();
-        _videoController = VideoPlayerController.file(file)
-          ..initialize().then((_) {
-            setState(() {});
-          });
+        if (kIsWeb) {
+          // On web, create a blob URL for the video
+          final bytes = await video.readAsBytes();
+          final url = platform_utils.createImageUrl(bytes);
+          _videoController = VideoPlayerController.networkUrl(Uri.parse(url));
+        } else {
+          _videoController = VideoPlayerController.file(io.File(video.path));
+        }
+
+        _videoController!.initialize().then((_) {
+          setState(() {});
+        });
       }
     } catch (e) {
       _showError('Lỗi chọn video: $e');
+    }
+  }
+
+  Map<String, dynamic> _createDemoResult() {
+    // Create realistic demo data for web testing
+    final random = DateTime.now().millisecond;
+    final hasFireOrSmoke = random % 3 == 0; // 33% chance of detection
+
+    if (_fileType == 'image') {
+      return {
+        'fire_detected': hasFireOrSmoke,
+        'confidence':
+            hasFireOrSmoke
+                ? 0.85 + (random % 15) / 100
+                : 0.1 + (random % 20) / 100,
+        'detections':
+            hasFireOrSmoke
+                ? [
+                  {
+                    'class': random % 2 == 0 ? 'fire' : 'smoke',
+                    'confidence': 0.87,
+                    'bbox': [100, 100, 200, 200],
+                  },
+                ]
+                : [],
+        'summary': {
+          'fire': hasFireOrSmoke && random % 2 == 0 ? 1 : 0,
+          'smoke': hasFireOrSmoke && random % 2 == 1 ? 1 : 0,
+        },
+      };
+    } else {
+      return {
+        'fire_detected': hasFireOrSmoke,
+        'confidence':
+            hasFireOrSmoke
+                ? 0.82 + (random % 18) / 100
+                : 0.05 + (random % 25) / 100,
+        'detections': hasFireOrSmoke ? 3 + (random % 5) : 0,
+        'fire_count': hasFireOrSmoke ? 1 + (random % 3) : 0,
+        'smoke_count': hasFireOrSmoke ? 1 + (random % 2) : 0,
+        'has_bounding_boxes': hasFireOrSmoke,
+        'summary': {
+          'total_frames': 120,
+          'fire_frames': hasFireOrSmoke ? 15 + (random % 10) : 0,
+          'smoke_frames': hasFireOrSmoke ? 8 + (random % 8) : 0,
+        },
+      };
     }
   }
 
@@ -82,10 +150,22 @@ class _PredictScreenState extends State<PredictScreen> {
     });
 
     try {
-      final result = await _predictionService.uploadAndPredict(
-        _selectedFile!,
-        _fileType!,
-      );
+      Map<String, dynamic> result;
+
+      if (kIsWeb) {
+        // Demo mode only for web - simulate API response
+        await Future.delayed(
+          const Duration(seconds: 2),
+        ); // Simulate processing time
+        result = _createDemoResult();
+        _showSuccess('🧪 Demo mode - Web không support real API');
+      } else {
+        // Real API call for mobile/desktop
+        result = await _predictionService.uploadAndPredict(
+          _selectedFile!,
+          _fileType!,
+        );
+      }
 
       setState(() {
         _predictionResult = result;
@@ -94,7 +174,8 @@ class _PredictScreenState extends State<PredictScreen> {
       if (result['fire_detected'] == true) {
         await NotificationService().showNotification(
           title: 'CẢNH BÁO CHÁY!',
-          body: 'Phát hiện lửa trong ${_fileType == 'video' ? 'video' : 'ảnh'} vừa phân tích!',
+          body:
+              'Phát hiện lửa trong ${_fileType == 'video' ? 'video' : 'ảnh'} vừa phân tích!',
         );
       }
 
@@ -105,43 +186,49 @@ class _PredictScreenState extends State<PredictScreen> {
       setState(() {
         _isProcessing = false;
       });
-      
+
       // If video result is available, play it with bounding boxes
-      if (_predictionResult != null && 
+      if (!kIsWeb &&
+          _predictionResult != null &&
           _predictionResult!.containsKey('result_video_path')) {
         final resultVideoPath = _predictionResult!['result_video_path'];
-        debugPrint('🎥 Result video path: $resultVideoPath');
-        
-        final videoFile = File(resultVideoPath);
+        debugPrint(' Result video path: $resultVideoPath');
+
+        final videoFile = io.File(resultVideoPath);
         final exists = await videoFile.exists();
         final size = exists ? await videoFile.length() : 0;
-        debugPrint('📹 Result video exists: $exists, size: ${size / (1024*1024):.2f} MB');
-        
+        debugPrint(
+          '📹 Result video exists: $exists, size: ${(size / (1024 * 1024)).toStringAsFixed(2)} MB',
+        );
+
         if (exists && size > 0) {
           _videoController?.dispose();
           _videoController = VideoPlayerController.file(videoFile)
-            ..initialize().then((_) {
-              debugPrint('✅ Result video with bounding boxes initialized');
-              setState(() {});
-              
-              // Show notification about bounding boxes
-              final hasBoxes = _predictionResult!['has_bounding_boxes'] ?? false;
-              if (hasBoxes) {
-                final detections = _predictionResult!['detections'] ?? 0;
-                final fireCount = _predictionResult!['fire_count'] ?? 0;
-                final smokeCount = _predictionResult!['smoke_count'] ?? 0;
-                
-                _showSuccess(
-                  'Video phân tích hoàn tất với $detections phát hiện! '
-                  '🔥 Lửa: $fireCount, 💨 Khói: $smokeCount'
-                );
-              }
-              
-              _videoController!.play();
-            }).catchError((error) {
-              debugPrint('❌ Error initializing result video: $error');
-              _showError('Lỗi khởi tạo video kết quả: $error');
-            });
+            ..initialize()
+                .then((_) {
+                  debugPrint(' Result video with bounding boxes initialized');
+                  setState(() {});
+
+                  // Show notification about bounding boxes
+                  final hasBoxes =
+                      _predictionResult!['has_bounding_boxes'] ?? false;
+                  if (hasBoxes) {
+                    final detections = _predictionResult!['detections'] ?? 0;
+                    final fireCount = _predictionResult!['fire_count'] ?? 0;
+                    final smokeCount = _predictionResult!['smoke_count'] ?? 0;
+
+                    _showSuccess(
+                      'Video phân tích hoàn tất với $detections phát hiện! '
+                      '🔥 Lửa: $fireCount, 💨 Khói: $smokeCount',
+                    );
+                  }
+
+                  _videoController!.play();
+                })
+                .catchError((error) {
+                  debugPrint(' Error initializing result video: $error');
+                  _showError('Lỗi khởi tạo video kết quả: $error');
+                });
         } else {
           _showError('Video kết quả không hợp lệ hoặc bị lỗi');
         }
@@ -183,138 +270,310 @@ class _PredictScreenState extends State<PredictScreen> {
     );
   }
 
+  Future<void> _testConnection() async {
+    final currentHost = ApiConfig.getApiBaseUrl();
+    _showError(' Đang test kết nối đến $currentHost...');
+
+    try {
+      // Use the new test endpoint
+      final result = await _predictionService.testConnection();
+
+      if (result['success'] == true) {
+        _showSuccess(
+          ' ${result['message']}\n'
+          ' Server IP: ${result['server_ip']}\n'
+          ' Port: ${result['server_port']}\n'
+          ' ${result['timestamp']}',
+        );
+      } else {
+        _showError(' Test thất bại: ${result['error']}');
+
+        // Try to find a working host with detailed logging
+        _showError(' Đang tìm kiếm server khả dụng...');
+
+        for (String host in ApiConfig.getHostsToTry()) {
+          _showError('Testing: $host');
+          bool hostWorks = await NetworkUtils.testConnection(host);
+          if (hostWorks) {
+            _showSuccess(' Tìm thấy server hoạt động: $host');
+            _showSuccess(' Hãy cập nhật constants.dart với host này');
+            return;
+          } else {
+            _showError(' $host không hoạt động');
+          }
+          // Small delay between tests
+          await Future.delayed(Duration(milliseconds: 500));
+        }
+
+        _showError(
+          '🔧 Không tìm thấy server nào hoạt động.\n'
+          'Debug info:\n'
+          '- Server chạy: uvicorn main:app --host 0.0.0.0 --port 8000\n'
+          '- Kiểm tra firewall Windows\n'
+          '- Đảm bảo điện thoại và PC cùng WiFi\n'
+          '- IP hiện tại: 192.168.1.149\n'
+          '- Thử disable Windows Defender Firewall tạm thời',
+        );
+      }
+    } catch (e) {
+      _showError('Lỗi test connection: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.deepOrange.shade50,
-            Colors.orange.shade50,
-            Colors.amber.shade50,
-          ],
+    return Scaffold(
+      backgroundColor: Colors.blue.shade50,
+      appBar: AppBar(
+        title: Text(
+          '🔥 AI Fire Detection',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
         ),
+        backgroundColor: Colors.blue.shade700,
+        centerTitle: true,
       ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Title with icon
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Colors.deepOrange, Colors.orange],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.deepOrange.withOpacity(0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
+            // Tiêu đề chính
+            Center(
+              child: Text(
+                'Fire Detection System',
+                style: GoogleFonts.poppins(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red.shade700,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Upload functionality - Simplified
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    Text(
+                      'Chọn file để phân tích',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
                       ),
-                    ],
-                  ),
-                  child: const Icon(Icons.psychology, color: Colors.white, size: 28),
-                ).animate().scale(duration: 600.ms),
-                const SizedBox(width: 16),
-                Text(
-                  'AI Dự Đoán Cháy',
-                  style: GoogleFonts.poppins(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.deepOrange[800],
-                  ),
-                ).animate().fadeIn(duration: 600.ms).slideX(),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            // Action buttons with glassmorphism
-            Row(
-              children: [
-                Expanded(
-                  child: _buildActionButton(
-                    icon: Icons.image_rounded,
-                    label: 'Chọn Ảnh',
-                    gradient: [Colors.blue[400]!, Colors.blue[600]!],
-                    onPressed: _isProcessing ? null : _pickImage,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildActionButton(
-                    icon: Icons.videocam_rounded,
-                    label: 'Chọn Video',
-                    gradient: [Colors.purple[400]!, Colors.purple[600]!],
-                    onPressed: _isProcessing ? null : _pickVideo,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            // Preview area
-            if (_selectedFile != null) ...[
-              GlassmorphicContainer(
-                width: double.infinity,
-                height: 360,
-                borderRadius: 20,
-                blur: 20,
-                alignment: Alignment.center,
-                border: 2,
-                linearGradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withOpacity(0.2),
-                    Colors.white.withOpacity(0.05),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _isProcessing ? null : _pickImage,
+                            icon: const Icon(Icons.image),
+                            label: const Text('Chọn ảnh'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue.shade600,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _isProcessing ? null : _pickVideo,
+                            icon: const Icon(Icons.video_library),
+                            label: const Text('Chọn video'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green.shade600,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Debug connection button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _testConnection,
+                        icon: const Icon(Icons.wifi_find, size: 16),
+                        label: const Text('Test kết nối Server'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange.shade600,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                borderGradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withOpacity(0.5),
-                    Colors.white.withOpacity(0.2),
+              ),
+            ),
+
+            // Show preview area
+            if (_selectedFile != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                height: 300,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.3),
+                      blurRadius: 5,
+                      offset: Offset(0, 3),
+                    ),
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: _fileType == 'image'
-                      ? Image.file(
-                    _selectedFile!,
-                    fit: BoxFit.contain,
-                  )
-                      : (_videoController != null &&
-                      _videoController!.value.isInitialized)
-                      ? AspectRatio(
-                    aspectRatio: _videoController!.value.aspectRatio,
-                    child: VideoPlayer(_videoController!),
-                  )
-                      : Center(
-                    child: Shimmer.fromColors(
-                      baseColor: Colors.grey[300]!,
-                      highlightColor: Colors.grey[100]!,
-                      child:
-                      const Icon(Icons.video_library, size: 64),
-                    ),
-                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  child:
+                      _fileType == 'image'
+                          ? (kIsWeb
+                              ? Image.network(
+                                (_selectedFile as XFile).path,
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return FutureBuilder<Uint8List>(
+                                    future:
+                                        (_selectedFile as XFile).readAsBytes(),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.hasData) {
+                                        return Image.memory(
+                                          snapshot.data!,
+                                          fit: BoxFit.contain,
+                                        );
+                                      }
+                                      return const Center(
+                                        child: CircularProgressIndicator(),
+                                      );
+                                    },
+                                  );
+                                },
+                              )
+                              : FutureBuilder<Uint8List>(
+                                future: (_selectedFile as XFile).readAsBytes(),
+                                builder: (context, snapshot) {
+                                  if (snapshot.hasData) {
+                                    return Image.memory(
+                                      snapshot.data!,
+                                      fit: BoxFit.contain,
+                                    );
+                                  }
+                                  return const Center(
+                                    child: CircularProgressIndicator(),
+                                  );
+                                },
+                              ))
+                          : (_videoController != null &&
+                              _videoController!.value.isInitialized)
+                          ? Container(
+                            width: double.infinity,
+                            height: 300, // Fixed height for consistency
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: FittedBox(
+                                fit:
+                                    BoxFit
+                                        .contain, // Maintain aspect ratio without cropping
+                                child: SizedBox(
+                                  width: _videoController!.value.size.width,
+                                  height: _videoController!.value.size.height,
+                                  child: VideoPlayer(_videoController!),
+                                ),
+                              ),
+                            ),
+                          )
+                          : Center(
+                            child: Icon(
+                              Icons.video_library,
+                              size: 64,
+                              color: Colors.grey,
+                            ),
+                          ),
                 ),
-              ).animate().fadeIn(duration: 400.ms).scale(delay: 100.ms),
+              ),
 
               const SizedBox(height: 16),
 
+              // Show annotated image result with bounding boxes
+              if (_fileType == 'image' &&
+                  _predictionResult != null &&
+                  _predictionResult!.containsKey('result_image_path') &&
+                  _predictionResult!['has_bounding_boxes'] == true)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        width: double.infinity,
+                        color: Colors.orange,
+                        child: Text(
+                          'KẾT QUẢ PHÁT HIỆN (CÓ BOUNDING BOX)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      Image.file(
+                        io.File(_predictionResult!['result_image_path']),
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            height: 200,
+                            child: Center(
+                              child: Text(
+                                'Không thể hiển thị ảnh kết quả',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+
               // Video result indicator
-              if (_fileType == 'video' && _predictionResult != null && 
+              if (_fileType == 'video' &&
+                  _predictionResult != null &&
                   _predictionResult!.containsKey('has_bounding_boxes') &&
                   _predictionResult!['has_bounding_boxes'] == true)
                 Container(
@@ -322,18 +581,25 @@ class _PredictScreenState extends State<PredictScreen> {
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [Colors.green.withOpacity(0.1), Colors.blue.withOpacity(0.1)],
+                      colors: [
+                        Colors.green.withOpacity(0.1),
+                        Colors.blue.withOpacity(0.1),
+                      ],
                     ),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.green.withOpacity(0.3)),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.visibility, color: Colors.green[600], size: 20),
+                      Icon(
+                        Icons.visibility,
+                        color: Colors.green[600],
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '🎯 Video này hiển thị bounding boxes với nhãn tiếng Việt',
+                          ' Video này hiển thị bounding boxes với nhãn tiếng Việt',
                           style: GoogleFonts.poppins(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
@@ -383,9 +649,10 @@ class _PredictScreenState extends State<PredictScreen> {
                 height: 60,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: _isProcessing
-                        ? [Colors.grey[400]!, Colors.grey[500]!]
-                        : [Colors.deepOrange, Colors.orange[700]!],
+                    colors:
+                        _isProcessing
+                            ? [Colors.grey[400]!, Colors.grey[500]!]
+                            : [Colors.deepOrange, Colors.orange[700]!],
                   ),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
@@ -402,49 +669,55 @@ class _PredictScreenState extends State<PredictScreen> {
                     onTap: _isProcessing ? null : _predict,
                     borderRadius: BorderRadius.circular(16),
                     child: Center(
-                      child: _isProcessing
-                          ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 3,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Text(
-                            'Đang phân tích...',
-                            style: GoogleFonts.poppins(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      )
-                          : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.auto_awesome,
-                              color: Colors.white, size: 24),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Phân Tích Ngay',
-                            style: GoogleFonts.poppins(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
+                      child:
+                          _isProcessing
+                              ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 3,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Text(
+                                    'Đang phân tích...',
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              )
+                              : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.auto_awesome,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Phân Tích Ngay',
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
                     ),
                   ),
                 ),
               ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2),
+
+              const SizedBox(height: 16),
             ],
 
             // Results Area
@@ -487,8 +760,11 @@ class _PredictScreenState extends State<PredictScreen> {
                             ),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.analytics,
-                              color: Colors.white, size: 24),
+                          child: const Icon(
+                            Icons.analytics,
+                            color: Colors.white,
+                            size: 24,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Text(
@@ -507,15 +783,18 @@ class _PredictScreenState extends State<PredictScreen> {
                       _buildModernResultItem(
                         icon: Icons.local_fire_department,
                         label: 'Phát hiện cháy',
-                        value: _predictionResult!['fire_detected']
-                            ? 'CÓ'
-                            : 'KHÔNG',
-                        valueColor: _predictionResult!['fire_detected']
-                            ? Colors.red
-                            : Colors.green,
-                        iconColor: _predictionResult!['fire_detected']
-                            ? Colors.red
-                            : Colors.green,
+                        value:
+                            _predictionResult!['fire_detected']
+                                ? 'CÓ'
+                                : 'KHÔNG',
+                        valueColor:
+                            _predictionResult!['fire_detected']
+                                ? Colors.red
+                                : Colors.green,
+                        iconColor:
+                            _predictionResult!['fire_detected']
+                                ? Colors.red
+                                : Colors.green,
                       ),
 
                     if (_predictionResult!.containsKey('confidence'))
@@ -523,7 +802,7 @@ class _PredictScreenState extends State<PredictScreen> {
                         icon: Icons.speed,
                         label: 'Độ tin cậy',
                         value:
-                        '${(_predictionResult!['confidence'] * 100).toStringAsFixed(1)}%',
+                            '${(_predictionResult!['confidence'] * 100).toStringAsFixed(1)}%',
                         valueColor: Colors.blue[700]!,
                         iconColor: Colors.blue,
                       ),
@@ -538,7 +817,8 @@ class _PredictScreenState extends State<PredictScreen> {
                       ),
 
                     // Bounding Box Information for Video
-                    if (_fileType == 'video' && _predictionResult!.containsKey('has_bounding_boxes'))
+                    if (_fileType == 'video' &&
+                        _predictionResult!.containsKey('has_bounding_boxes'))
                       _buildBoundingBoxInfo(),
 
                     if (_predictionResult!.containsKey('processing_time'))
@@ -546,7 +826,7 @@ class _PredictScreenState extends State<PredictScreen> {
                         icon: Icons.timer,
                         label: 'Thời gian xử lý',
                         value:
-                        '${_predictionResult!['processing_time'].toStringAsFixed(2)}s',
+                            '${_predictionResult!['processing_time'].toStringAsFixed(2)}s',
                         valueColor: Colors.purple[700]!,
                         iconColor: Colors.purple,
                       ),
@@ -571,10 +851,10 @@ class _PredictScreenState extends State<PredictScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.cloud_upload_outlined,
-                      size: 80,
-                      color: Colors.deepOrange.withOpacity(0.4),
-                    )
+                          Icons.cloud_upload_outlined,
+                          size: 80,
+                          color: Colors.deepOrange.withOpacity(0.4),
+                        )
                         .animate(onPlay: (controller) => controller.repeat())
                         .shimmer(duration: 2000.ms),
                     const SizedBox(height: 16),
@@ -596,70 +876,34 @@ class _PredictScreenState extends State<PredictScreen> {
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required List<Color> gradient,
-    required VoidCallback? onPressed,
-  }) {
-    return Container(
-      height: 56,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: gradient),
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: onPressed != null
-            ? [
-          BoxShadow(
-            color: gradient[0].withOpacity(0.4),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ]
-            : [],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(14),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: Colors.white, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildBoundingBoxInfo() {
     final hasBoxes = _predictionResult!['has_bounding_boxes'] ?? false;
     final fireCount = _predictionResult!['fire_count'] ?? 0;
     final smokeCount = _predictionResult!['smoke_count'] ?? 0;
     final framesProcessed = _predictionResult!['frames_processed'] ?? 0;
-    
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: hasBoxes 
-            ? [Colors.green.withOpacity(0.1), Colors.blue.withOpacity(0.1)]
-            : [Colors.grey.withOpacity(0.1), Colors.grey.withOpacity(0.05)],
+          colors:
+              hasBoxes
+                  ? [
+                    Colors.green.withOpacity(0.1),
+                    Colors.blue.withOpacity(0.1),
+                  ]
+                  : [
+                    Colors.grey.withOpacity(0.1),
+                    Colors.grey.withOpacity(0.05),
+                  ],
         ),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: hasBoxes ? Colors.green.withOpacity(0.3) : Colors.grey.withOpacity(0.3),
+          color:
+              hasBoxes
+                  ? Colors.green.withOpacity(0.3)
+                  : Colors.grey.withOpacity(0.3),
           width: 2,
         ),
       ),
@@ -676,9 +920,9 @@ class _PredictScreenState extends State<PredictScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  hasBoxes 
-                    ? '🎥 Video có Bounding Boxes'
-                    : '🎥 Video không có phát hiện',
+                  hasBoxes
+                      ? ' Video có Bounding Boxes'
+                      : ' Video không có phát hiện',
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -688,15 +932,15 @@ class _PredictScreenState extends State<PredictScreen> {
               ),
             ],
           ),
-          
+
           if (hasBoxes) ...[
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: _buildDetectionBadge(
-                    '🔥 Lửa', 
-                    fireCount, 
+                    ' Lua',
+                    fireCount,
                     Colors.red.withOpacity(0.1),
                     Colors.red,
                   ),
@@ -704,25 +948,25 @@ class _PredictScreenState extends State<PredictScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: _buildDetectionBadge(
-                    '💨 Khói', 
-                    smokeCount, 
-                    Colors.blue.withOpacity(0.1),
-                    Colors.blue,
+                    ' Khói',
+                    smokeCount,
+                    Colors.grey.withOpacity(0.1),
+                    Colors.grey,
                   ),
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 8),
             Text(
-              '📊 $framesProcessed khung hình đã được phân tích',
+              ' $framesProcessed khung hình đã được phân tích',
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 color: Colors.grey[600],
                 fontStyle: FontStyle.italic,
               ),
             ),
-            
+
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(8),
@@ -762,8 +1006,13 @@ class _PredictScreenState extends State<PredictScreen> {
       ),
     );
   }
-  
-  Widget _buildDetectionBadge(String label, int count, Color bgColor, Color textColor) {
+
+  Widget _buildDetectionBadge(
+    String label,
+    int count,
+    Color bgColor,
+    Color textColor,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -816,10 +1065,7 @@ class _PredictScreenState extends State<PredictScreen> {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.7),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: iconColor.withOpacity(0.3),
-          width: 1.5,
-        ),
+        border: Border.all(color: iconColor.withOpacity(0.3), width: 1.5),
       ),
       child: Row(
         children: [
@@ -852,6 +1098,8 @@ class _PredictScreenState extends State<PredictScreen> {
           ),
         ],
       ),
-    ).animate().fadeIn(delay: 100.ms).slideX(begin: 0.2);
+    );
   }
+
+  // Test notification methods
 }

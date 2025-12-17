@@ -1,8 +1,17 @@
 // import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
-const String apiBaseUrl = 'http://localhost:8000';
-const String API_BASE_URL = 'http://localhost:8000';
+// 🔧 HƯỚNG DẪN CẤU HÌNH SERVER AI:
+// 1. Khởi động server AI (python main.py hoặc uvicorn main:app --host 0.0.0.0 --port 8000)
+// 2. Tìm IP của máy chạy server: ipconfig (Windows) hoặc ifconfig (Mac/Linux)
+// 3. Bỏ comment và cập nhật IP address phù hợp bên dưới:
+
+// 🤖 Auto-detect best host based on platform
+const String apiBaseUrl = 'http://192.168.2.29:8000'; // Server IP
+const String API_BASE_URL = 'http://172.20.10.5:8000'; // Backend API endpoints
+const String ESP32_CONNECT_ENDPOINT = '/esp32/connect';
+const String ESP32_CAPTURE_ENDPOINT = '/esp32/capture';
+const String ESP32_STREAM_ENDPOINT = '/esp32/stream';
 
 // App Colors
 const Color kPrimaryColor = Colors.deepOrange;

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:async';
 import '../services/camera_detection_service.dart';
+import '../services/notification_service.dart';
 import '../models/detection_result.dart';
 import '../constants.dart';
-import 'dart:async';
 
 class CameraDetectionScreen extends StatefulWidget {
   const CameraDetectionScreen({super.key});
@@ -174,8 +176,12 @@ class _CameraDetectionScreenState extends State<CameraDetectionScreen>
       // Capture image
       final XFile image = await _cameraController!.takePicture();
 
-      // Send to detection service
+      // Send to detection service for JSON result only
+      debugPrint(' Sending image to server: ${image.path}');
       final result = await _detectionService.detectFromImage(image.path);
+      debugPrint(
+        ' Received detection result with ${result.detections.length} objects',
+      );
 
       if (mounted) {
         setState(() {
@@ -184,12 +190,12 @@ class _CameraDetectionScreenState extends State<CameraDetectionScreen>
 
           if (result.detections.isNotEmpty) {
             _totalDetections += result.detections.length;
+
+            // Send fire/smoke alert notifications
+            _sendAlertNotifications(result);
           }
 
           // Show alert if fire or smoke detected
-          if (result.hasFireOrSmoke) {
-            _showFireSmokeAlert(result);
-          }
         });
       }
     } catch (e) {
@@ -203,30 +209,33 @@ class _CameraDetectionScreenState extends State<CameraDetectionScreen>
     }
   }
 
-  void _showFireSmokeAlert(DetectionResult result) {
-    // Show dialog for critical alerts
-    if (result.alertLevel == 'HIGH') {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder:
-            (context) => AlertDialog(
-              icon: const Icon(Icons.warning, color: Colors.red, size: 48),
-              title: const Text('CẢNH BÁO KHẨN CẤP!'),
-              content: Text(
-                result.message,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('ĐÓNG'),
-                ),
-              ],
-            ),
+
+  void _sendAlertNotifications(DetectionResult result) async {
+    // Send notifications for fire/smoke detection
+    bool hasFire = result.detections.any(
+      (d) => (d['class'] as String).toLowerCase() == 'fire',
+    );
+    bool hasSmoke = result.detections.any(
+      (d) => (d['class'] as String).toLowerCase() == 'smoke',
+    );
+
+    if (hasFire) {
+      await NotificationService().sendFireAlert(
+        location: 'Camera Live Detection',
+        confidence: result.detections
+            .where((d) => (d['class'] as String).toLowerCase() == 'fire')
+            .map((d) => (d['confidence'] as double))
+            .reduce((a, b) => a > b ? a : b),
+      );
+    }
+
+    if (hasSmoke) {
+      await NotificationService().sendSmokeAlert(
+        location: 'Camera Live Detection',
+        confidence: result.detections
+            .where((d) => (d['class'] as String).toLowerCase() == 'smoke')
+            .map((d) => (d['confidence'] as double))
+            .reduce((a, b) => a > b ? a : b),
       );
     }
   }
@@ -278,11 +287,24 @@ class _CameraDetectionScreenState extends State<CameraDetectionScreen>
                     flex: 3,
                     child: Stack(
                       children: [
-                        // Camera view
+                        // Camera view with bounding boxes overlay
                         Center(
-                          child: AspectRatio(
-                            aspectRatio: _cameraController!.value.aspectRatio,
-                            child: CameraPreview(_cameraController!),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: AspectRatio(
+                              aspectRatio: 3 / 4, // Standard phone camera ratio
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  // Live camera preview
+                                  CameraPreview(_cameraController!),
+
+                                  // Real-time bounding boxes overlay
+                                  if (_lastDetectionResult != null)
+                                    _buildDetectionOverlay(),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
 
@@ -528,8 +550,6 @@ class DetectionOverlayPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3;
 
-    final textPaint = Paint()..color = Colors.white;
-
     // Draw bounding boxes (this is a simplified version)
     // In a real implementation, you'd need to scale the coordinates
     // from the detection result to match the camera preview size
@@ -539,27 +559,79 @@ class DetectionOverlayPainter extends CustomPainter {
       final className = detection['class'];
       final confidence = detection['confidence'];
 
-      // Set color based on class
-      paint.color =
-          className.toLowerCase() == 'fire' ? Colors.red : Colors.blue;
+      // Set color and Vietnamese label based on class
+      Color boxColor;
+      String vietnameseLabel;
+      if (className.toLowerCase() == 'fire') {
+        boxColor = Colors.red;
+        vietnameseLabel = '🔥 LỬA';
+      } else {
+        boxColor = Colors.orange;
+        vietnameseLabel = '💨 KHÓI';
+      }
 
-      // This is a placeholder - you'd need to properly scale coordinates
-      final rect = Rect.fromLTWH(
-        bbox['x1'] * size.width / 640, // Assuming original image is 640px wide
-        bbox['y1'] * size.height / 480, // Assuming original image is 480px high
-        (bbox['x2'] - bbox['x1']) * size.width / 640,
-        (bbox['y2'] - bbox['y1']) * size.height / 480,
+      paint.color = boxColor;
+      paint.strokeWidth = 4;
+
+      // Scale coordinates from detection result to current screen size
+      // The detection coordinates are already normalized or in pixel coordinates
+      final rect = Rect.fromLTRB(
+        (bbox['x1'] as double) * size.width / 640,
+        (bbox['y1'] as double) * size.height / 480,
+        (bbox['x2'] as double) * size.width / 640,
+        (bbox['y2'] as double) * size.height / 480,
       );
 
+      // Draw bounding box
       canvas.drawRect(rect, paint);
 
-      // Draw label
+      // Draw corner markers
+      final cornerSize = 15.0;
+      paint.style = PaintingStyle.fill;
+      canvas.drawRect(
+        Rect.fromLTWH(rect.left, rect.top, cornerSize, cornerSize),
+        paint,
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(
+          rect.right - cornerSize,
+          rect.top,
+          cornerSize,
+          cornerSize,
+        ),
+        paint,
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(
+          rect.left,
+          rect.bottom - cornerSize,
+          cornerSize,
+          cornerSize,
+        ),
+        paint,
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(
+          rect.right - cornerSize,
+          rect.bottom - cornerSize,
+          cornerSize,
+          cornerSize,
+        ),
+        paint,
+      );
+
+      // Reset paint style
+      paint.style = PaintingStyle.stroke;
+
+      // Draw label with Vietnamese text
+      final confidencePercent = (confidence * 100).toStringAsFixed(1);
       final textSpan = TextSpan(
-        text: '$className ${(confidence * 100).toStringAsFixed(0)}%',
+        text: '$vietnameseLabel $confidencePercent%',
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 14,
+          fontSize: 16,
           fontWeight: FontWeight.bold,
+          shadows: [Shadow(blurRadius: 2, color: Colors.black)],
         ),
       );
 
@@ -569,13 +641,22 @@ class DetectionOverlayPainter extends CustomPainter {
       );
       textPainter.layout();
 
-      // Draw background for text
-      canvas.drawRect(
-        Rect.fromLTWH(rect.left, rect.top - 20, textPainter.width + 8, 20),
-        Paint()..color = paint.color,
+      // Draw semi-transparent background for text
+      final bgHeight = textPainter.height + 8;
+      final bgWidth = textPainter.width + 16;
+      canvas.drawRRect(
+        RRect.fromLTRBR(
+          rect.left,
+          rect.top - bgHeight - 4,
+          rect.left + bgWidth,
+          rect.top - 4,
+          const Radius.circular(4),
+        ),
+        Paint()..color = boxColor.withOpacity(0.9),
       );
 
-      textPainter.paint(canvas, Offset(rect.left + 4, rect.top - 18));
+      // Draw text
+      textPainter.paint(canvas, Offset(rect.left + 8, rect.top - bgHeight + 2));
     }
   }
 
