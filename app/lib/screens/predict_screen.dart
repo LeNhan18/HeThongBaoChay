@@ -718,35 +718,6 @@ class _PredictScreenState extends State<PredictScreen> {
               ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2),
 
               const SizedBox(height: 16),
-
-              // Test Notification Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _testFireNotification,
-                      icon: Icon(Icons.local_fire_department),
-                      label: Text('Test Báo Cháy'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _testSmokeNotification,
-                      icon: Icon(Icons.smoke_free),
-                      label: Text('Test Báo Khói'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ],
 
             // Results Area
@@ -1131,27 +1102,4 @@ class _PredictScreenState extends State<PredictScreen> {
   }
 
   // Test notification methods
-  Future<void> _testFireNotification() async {
-    try {
-      await NotificationService().sendFireAlert(
-        location: 'Khu vực test',
-        confidence: 0.95,
-      );
-      _showSuccess(' Đã gửi thông báo test cháy!');
-    } catch (e) {
-      _showError('Lỗi gửi thông báo: $e');
-    }
-  }
-
-  Future<void> _testSmokeNotification() async {
-    try {
-      await NotificationService().sendSmokeAlert(
-        location: 'Khu vực test',
-        confidence: 0.85,
-      );
-      _showSuccess(' Đã gửi thông báo test khói!');
-    } catch (e) {
-      _showError(' Lỗi gửi thông báo: $e');
-    }
-  }
 }

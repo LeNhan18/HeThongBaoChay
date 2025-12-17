@@ -116,7 +116,7 @@ class PredictionService {
           final framesProcessed =
               int.tryParse(headers['x-frames-processed'] ?? '0') ?? 0;
 
-          print('🎥 Video Analysis Results:');
+          print('   Video Analysis Results:');
           print('   Frames processed: $framesProcessed');
           print('   Total detections: $detectionsCount');
           print('   Fire detections: $fireCount');
