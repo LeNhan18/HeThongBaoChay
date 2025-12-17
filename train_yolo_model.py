@@ -280,17 +280,12 @@ class AdvancedFireSmokeTrainer:
         }
     
     def train_with_advanced_techniques(self):
-        """Train model với advanced techniques và robust error handling"""
-        logger.info(f" Starting SAFE advanced training for {self.epochs} epochs...")
-        
         # Clear GPU memory before training
         if 'cuda' in self.device:
             torch.cuda.empty_cache()
             torch.cuda.synchronize()
-        
         # Get optimized hyperparameters
         hyperparams = self.get_optimized_hyperparameters()
-        
         # CONSERVATIVE training arguments để tránh CUDA errors
         train_args = {
             # Basic settings - CONSERVATIVE
@@ -300,7 +295,6 @@ class AdvancedFireSmokeTrainer:
             'batch': min(self.batch_size, 4),  # Cap batch size for safety
             'device': self.device,
             'workers': min(os.cpu_count()//2, 4),  # Reduce workers
-            
             # Output settings
             'project': self.results_dir,
             'name': f'advanced_fire_smoke_{self.model_size}',
@@ -310,22 +304,19 @@ class AdvancedFireSmokeTrainer:
             'cache': False,                 # No caching to save memory
             'plots': True,
             'val': True,
-            'verbose': True,
-            
+            'verbose': True,  
             # SAFE Optimization settings
             'optimizer': 'SGD',             # More stable than AdamW
             'close_mosaic': 10,             # Earlier mosaic disable
             'amp': False,                   # Disable AMP for stability
             'fraction': 1.0,
             'profile': False,
-            
             # Conservative training settings
             'patience': 30,                 # Earlier stopping
             'single_cls': False,
             'rect': False,                  # Disable rect training
             'cos_lr': False,                # Use linear LR for stability
             'multi_scale': False,           # Disable multi-scale for stability
-            
             # Resume and pretrain
             'resume': False,
             'freeze': None,

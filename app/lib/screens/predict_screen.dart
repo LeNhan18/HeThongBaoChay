@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:io';
 import '../services/prediction_service.dart';
+import '../services/notification_service.dart';
 
 class PredictScreen extends StatefulWidget {
   const PredictScreen({super.key});
@@ -90,6 +91,13 @@ class _PredictScreenState extends State<PredictScreen> {
         _predictionResult = result;
       });
 
+      if (result['fire_detected'] == true) {
+        await NotificationService().showNotification(
+          title: 'CẢNH BÁO CHÁY!',
+          body: 'Phát hiện lửa trong ${_fileType == 'video' ? 'video' : 'ảnh'} vừa phân tích!',
+        );
+      }
+
       _showSuccess('Dự đoán thành công!');
     } catch (e) {
       _showError('Lỗi dự đoán: $e');
@@ -97,6 +105,47 @@ class _PredictScreenState extends State<PredictScreen> {
       setState(() {
         _isProcessing = false;
       });
+      
+      // If video result is available, play it with bounding boxes
+      if (_predictionResult != null && 
+          _predictionResult!.containsKey('result_video_path')) {
+        final resultVideoPath = _predictionResult!['result_video_path'];
+        debugPrint('🎥 Result video path: $resultVideoPath');
+        
+        final videoFile = File(resultVideoPath);
+        final exists = await videoFile.exists();
+        final size = exists ? await videoFile.length() : 0;
+        debugPrint('📹 Result video exists: $exists, size: ${size / (1024*1024):.2f} MB');
+        
+        if (exists && size > 0) {
+          _videoController?.dispose();
+          _videoController = VideoPlayerController.file(videoFile)
+            ..initialize().then((_) {
+              debugPrint('✅ Result video with bounding boxes initialized');
+              setState(() {});
+              
+              // Show notification about bounding boxes
+              final hasBoxes = _predictionResult!['has_bounding_boxes'] ?? false;
+              if (hasBoxes) {
+                final detections = _predictionResult!['detections'] ?? 0;
+                final fireCount = _predictionResult!['fire_count'] ?? 0;
+                final smokeCount = _predictionResult!['smoke_count'] ?? 0;
+                
+                _showSuccess(
+                  'Video phân tích hoàn tất với $detections phát hiện! '
+                  '🔥 Lửa: $fireCount, 💨 Khói: $smokeCount'
+                );
+              }
+              
+              _videoController!.play();
+            }).catchError((error) {
+              debugPrint('❌ Error initializing result video: $error');
+              _showError('Lỗi khởi tạo video kết quả: $error');
+            });
+        } else {
+          _showError('Video kết quả không hợp lệ hoặc bị lỗi');
+        }
+      }
     }
   }
 
@@ -149,7 +198,6 @@ class _PredictScreenState extends State<PredictScreen> {
         ),
       ),
       child: SingleChildScrollView(
-        // Đã thêm tham số child cho SingleChildScrollView
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -214,7 +262,7 @@ class _PredictScreenState extends State<PredictScreen> {
 
             const SizedBox(height: 24),
 
-            // Preview area (Sử dụng spread operator ...[])
+            // Preview area
             if (_selectedFile != null) ...[
               GlassmorphicContainer(
                 width: double.infinity,
@@ -264,6 +312,38 @@ class _PredictScreenState extends State<PredictScreen> {
               ).animate().fadeIn(duration: 400.ms).scale(delay: 100.ms),
 
               const SizedBox(height: 16),
+
+              // Video result indicator
+              if (_fileType == 'video' && _predictionResult != null && 
+                  _predictionResult!.containsKey('has_bounding_boxes') &&
+                  _predictionResult!['has_bounding_boxes'] == true)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.green.withOpacity(0.1), Colors.blue.withOpacity(0.1)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.visibility, color: Colors.green[600], size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '🎯 Video này hiển thị bounding boxes với nhãn tiếng Việt',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.green[700],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ).animate().fadeIn(duration: 600.ms).slideX(begin: 0.3),
 
               // Video controls
               if (_fileType == 'video' &&
@@ -365,11 +445,9 @@ class _PredictScreenState extends State<PredictScreen> {
                   ),
                 ),
               ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2),
-            ], // Kết thúc spread operator cho phần Preview
+            ],
 
-            const SizedBox(height: 24),
-
-            // Results Area (Sử dụng spread operator ...[])
+            // Results Area
             if (_predictionResult != null) ...[
               Container(
                 width: double.infinity,
@@ -459,6 +537,10 @@ class _PredictScreenState extends State<PredictScreen> {
                         iconColor: Colors.orange,
                       ),
 
+                    // Bounding Box Information for Video
+                    if (_fileType == 'video' && _predictionResult!.containsKey('has_bounding_boxes'))
+                      _buildBoundingBoxInfo(),
+
                     if (_predictionResult!.containsKey('processing_time'))
                       _buildModernResultItem(
                         icon: Icons.timer,
@@ -471,7 +553,7 @@ class _PredictScreenState extends State<PredictScreen> {
                   ],
                 ),
               ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.3),
-            ], // Kết thúc spread operator cho phần Results
+            ],
 
             // Empty state
             if (_selectedFile == null)
@@ -556,6 +638,167 @@ class _PredictScreenState extends State<PredictScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildBoundingBoxInfo() {
+    final hasBoxes = _predictionResult!['has_bounding_boxes'] ?? false;
+    final fireCount = _predictionResult!['fire_count'] ?? 0;
+    final smokeCount = _predictionResult!['smoke_count'] ?? 0;
+    final framesProcessed = _predictionResult!['frames_processed'] ?? 0;
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: hasBoxes 
+            ? [Colors.green.withOpacity(0.1), Colors.blue.withOpacity(0.1)]
+            : [Colors.grey.withOpacity(0.1), Colors.grey.withOpacity(0.05)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: hasBoxes ? Colors.green.withOpacity(0.3) : Colors.grey.withOpacity(0.3),
+          width: 2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                hasBoxes ? Icons.check_box : Icons.check_box_outline_blank,
+                color: hasBoxes ? Colors.green : Colors.grey,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  hasBoxes 
+                    ? '🎥 Video có Bounding Boxes'
+                    : '🎥 Video không có phát hiện',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: hasBoxes ? Colors.green[700] : Colors.grey[600],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          if (hasBoxes) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDetectionBadge(
+                    '🔥 Lửa', 
+                    fireCount, 
+                    Colors.red.withOpacity(0.1),
+                    Colors.red,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildDetectionBadge(
+                    '💨 Khói', 
+                    smokeCount, 
+                    Colors.blue.withOpacity(0.1),
+                    Colors.blue,
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 8),
+            Text(
+              '📊 $framesProcessed khung hình đã được phân tích',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: Colors.green[600]),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Video kết quả hiển thị các khung bounding box màu đỏ (lửa) và xanh (khói)',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: Colors.green[700],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 8),
+            Text(
+              'Không có lửa hoặc khói được phát hiện trong video này',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildDetectionBadge(String label, int count, Color bgColor, Color textColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: textColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: textColor,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              count.toString(),
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

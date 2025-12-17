@@ -1,19 +1,3 @@
-"""
-Fire and Smoke Detection API
-
-Real-time detection system using YOLOv11 model for identifying fire and smoke in images,
-videos, and camera streams. Provides REST API endpoints for image classification, video
-analysis, and live streaming detection.
-
-Features:
-- Image-based fire/smoke detection with confidence threshold control
-- Video file processing with frame-by-frame analysis
-- Real-time camera streaming with MJPEG output
-- JSON responses with detailed detection information
-- CORS support for cross-origin requests
-- Comprehensive error handling and logging
-"""
-
 import io
 import os
 import time
@@ -23,7 +7,6 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from collections import deque
-
 import cv2
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query
@@ -31,9 +14,9 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
 
-# ============================================================================
-# Configuration
-# ============================================================================
+# =============================================================================
+# == Configuration ============================================================
+# =============================================================================
 
 logging.basicConfig(
     level=logging.INFO,
@@ -62,6 +45,12 @@ camera_stats: Dict[str, Any] = {
     "frames": 0,
     "detections": 0,
     "start_time": None
+}
+
+# Vietnamese class name mapping
+VIETNAMESE_LABELS = {
+    "fire": "Lửa",
+    "smoke": "Khói"
 }
 
 # ============================================================================
@@ -100,7 +89,7 @@ app.add_middleware(
 )
 
 # ============================================================================
-# Utility Functions
+# Utility Functions ==========================================================
 # ============================================================================
 
 def validate_model_loaded() -> None:
@@ -112,7 +101,7 @@ def validate_model_loaded() -> None:
         )
 
 def read_image_bytes(file_content: bytes) -> Optional[np.ndarray]:
-    """Decode image from bytes."""
+
     try:
         nparr = np.frombuffer(file_content, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -124,7 +113,7 @@ def read_image_bytes(file_content: bytes) -> Optional[np.ndarray]:
         return None
 
 def extract_detections(result) -> List[Dict[str, Any]]:
-    """Extract detection data from YOLO inference result."""
+
     detections = []
     
     if result.boxes is None or len(result.boxes) == 0:
@@ -164,6 +153,106 @@ def count_detections_by_class(detections: List[Dict]) -> Dict[str, int]:
             counts[class_name] += 1
     return counts
 
+def plot_with_vietnamese_labels(result, img):
+    """Custom plot function with Vietnamese labels and enhanced visualization."""
+    import cv2
+    
+    # Make sure we have a copy to work with
+    annotated_img = img.copy()
+    
+    if result.boxes is not None and len(result.boxes) > 0:
+        logger.info(f"Drawing {len(result.boxes)} detections on frame")
+        
+        for i, box in enumerate(result.boxes):
+            # Get coordinates
+            x1, y1, x2, y2 = box.xyxy[0].tolist()
+            x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+            
+            # Get class info
+            class_id = int(box.cls[0])
+            confidence = float(box.conf[0])
+            class_name_en = model.names[class_id]
+            class_name_vi = VIETNAMESE_LABELS.get(class_name_en.lower(), class_name_en)
+            
+            # Enhanced colors for better visibility
+            if class_name_en.lower() == 'fire':
+                color = (0, 0, 255)  # Red for fire (BGR format)
+                text_color = (255, 255, 255)  # White text
+            else:  # smoke
+                color = (255, 0, 0)  # Blue for smoke (BGR format)
+                text_color = (255, 255, 255)  # White text
+            
+            # Draw thicker bounding box for better visibility
+            thickness = max(2, int((img.shape[0] + img.shape[1]) / 600))
+            cv2.rectangle(annotated_img, (x1, y1), (x2, y2), color, thickness)
+            
+            # Draw filled corner markers for extra visibility
+            corner_size = thickness * 3
+            cv2.rectangle(annotated_img, (x1, y1), (x1 + corner_size, y1 + corner_size), color, -1)
+            cv2.rectangle(annotated_img, (x2 - corner_size, y1), (x2, y1 + corner_size), color, -1)
+            cv2.rectangle(annotated_img, (x1, y2 - corner_size), (x1 + corner_size, y2), color, -1)
+            cv2.rectangle(annotated_img, (x2 - corner_size, y2 - corner_size), (x2, y2), color, -1)
+            
+            # Create label with Vietnamese text and confidence percentage
+            confidence_percent = confidence * 100
+            label = f"{class_name_vi} {confidence_percent:.1f}%"
+            
+            # Use larger font for better readability
+            font_scale = max(0.6, min(1.2, (img.shape[0] + img.shape[1]) / 1500))
+            font_thickness = max(1, thickness // 2)
+            
+            # Get text size for background
+            (text_width, text_height), baseline = cv2.getTextSize(
+                label, cv2.FONT_HERSHEY_DUPLEX, font_scale, font_thickness
+            )
+            
+            # Position label above bounding box, but handle edge cases
+            label_y = y1 - 10
+            if label_y - text_height < 0:  # If too close to top, put label inside box
+                label_y = y1 + text_height + 10
+            
+            # Draw semi-transparent background for better text visibility
+            label_bg_points = np.array([
+                [x1, label_y - text_height - 5],
+                [x1 + text_width + 10, label_y - text_height - 5],
+                [x1 + text_width + 10, label_y + baseline + 5],
+                [x1, label_y + baseline + 5]
+            ], np.int32)
+            
+            # Create overlay for transparency
+            overlay = annotated_img.copy()
+            cv2.fillPoly(overlay, [label_bg_points], color)
+            cv2.addWeighted(overlay, 0.8, annotated_img, 0.2, 0, annotated_img)
+            
+            # Draw the text
+            cv2.putText(
+                annotated_img, 
+                label, 
+                (x1 + 5, label_y), 
+                cv2.FONT_HERSHEY_DUPLEX, 
+                font_scale, 
+                text_color, 
+                font_thickness,
+                cv2.LINE_AA  # Anti-aliasing for smoother text
+            )
+            
+            # Add detection number for debugging
+            if logger.isEnabledFor(logging.DEBUG):
+                debug_label = f"#{i+1}"
+                cv2.putText(
+                    annotated_img,
+                    debug_label,
+                    (x2 - 30, y1 + 20),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (255, 255, 255),
+                    1
+                )
+    else:
+        logger.debug("No detections found in this frame")
+    
+    return annotated_img
+
 # ============================================================================
 # Root and Health Endpoints
 # ============================================================================
@@ -199,7 +288,7 @@ def health_check():
     }
 
 # ============================================================================
-# Image Detection Endpoints
+# ========= Image Detection Endpoints ========================================
 # ============================================================================
 
 @app.post("/predict/")
@@ -207,17 +296,7 @@ def predict_image_with_annotation(
     file: UploadFile = File(...),
     confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
 ):
-    """
-    Detect fire and smoke in image and return annotated result.
-    
-    Args:
-        file: Image file (JPG or PNG format)
-        confidence: Detection confidence threshold (0-1), default 0.25
-    
-    Returns:
-        JPEG image with detection bounding boxes drawn
-        Headers include detection counts (X-Detections-Count, X-Fire-Count, X-Smoke-Count)
-    """
+
     validate_model_loaded()
     
     if not file.filename.endswith(('.jpg', '.jpeg', '.png')):
@@ -236,16 +315,21 @@ def predict_image_with_annotation(
                 content={"error": "Failed to read image file"}
             )
         
-        results = model(img, conf=confidence)
+        results = model(img, conf=confidence, verbose=False)
+
         result = results[0]
+
         detections = extract_detections(result)
+
+        # Use custom Vietnamese plot function for consistent annotation
+        annotated_img = plot_with_vietnamese_labels(result, img)
         
-        annotated_img = result.plot()
         img_bytes = encode_image_to_jpeg(annotated_img)
-        
+
         fire_count = sum(1 for d in detections if d["class"] == "fire")
+
         smoke_count = sum(1 for d in detections if d["class"] == "smoke")
-        
+
         return StreamingResponse(
             iter([img_bytes]),
             media_type="image/jpeg",
@@ -266,20 +350,6 @@ def predict_image_json(
     file: UploadFile = File(...),
     confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
 ):
-    """
-    Detect fire and smoke in image and return JSON response only.
-    
-    Args:
-        file: Image file (JPG or PNG format)
-        confidence: Detection confidence threshold (0-1), default 0.25
-    
-    Returns:
-        JSON object containing:
-        - timestamp: ISO format timestamp
-        - image_size: Image dimensions
-        - detections: List of detected objects with bounding boxes
-        - summary: Count of total, fire, and smoke detections
-    """
     validate_model_loaded()
     
     if not file.filename.endswith(('.jpg', '.jpeg', '.png')):
@@ -291,29 +361,23 @@ def predict_image_json(
     try:
         contents = file.file.read()
         img = read_image_bytes(contents)
-        
         if img is None:
             return JSONResponse(
                 status_code=400,
                 content={"error": "Failed to read image file"}
             )
-        
         height, width = img.shape[:2]
-        
         results = model(img, conf=confidence)
         result = results[0]
         detections = extract_detections(result)
-        
         summary = count_detections_by_class(detections)
         summary["total"] = len(detections)
-        
         return JSONResponse(content={
             "timestamp": datetime.now().isoformat(),
             "image_size": {"width": width, "height": height},
             "detections": detections,
             "summary": summary
         })
-        
     except Exception as e:
         logger.error(f"Error in predict_image_json: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -323,7 +387,7 @@ def predict_image_json(
 # ============================================================================
 
 @app.post("/analyze_video/")
-async def analyze_video_file(
+def analyze_video_file(
     file: UploadFile = File(...),
     confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
 ):
@@ -364,12 +428,34 @@ async def analyze_video_file(
         fps = int(cap.get(cv2.CAP_PROP_FPS))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         
-        output_path = os.path.join(temp_dir, f"result_{file.filename}")
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
+        # Try different codecs to ensure video creation works
+        codecs = [('XVID', '.avi'), ('MJPG', '.avi'), ('mp4v', '.mp4')]
+        out = None
+        output_path = None
         
+        for codec, ext in codecs:
+            try:
+                test_path = os.path.join(temp_dir, f"result_{file.filename}").replace('.mp4', ext)
+                fourcc = cv2.VideoWriter_fourcc(*codec)
+                test_out = cv2.VideoWriter(test_path, fourcc, fps, (frame_width, frame_height))
+                
+                if test_out.isOpened():
+                    out = test_out
+                    output_path = test_path
+                    logger.info(f"Using {codec} codec for output")
+                    break
+                else:
+                    test_out.release()
+            except Exception as e:
+                logger.warning(f"Failed to create VideoWriter with {codec}: {e}")
+        
+        if out is None or not out.isOpened():
+            raise HTTPException(status_code=500, detail="Failed to create video writer with any codec")
+            
         frame_count = 0
         detection_count = 0
+        fire_count = 0
+        smoke_count = 0
         start_time = time.time()
         
         logger.info(f"Processing video: {file.filename} ({total_frames} frames)")
@@ -379,12 +465,24 @@ async def analyze_video_file(
             if not ret:
                 break
             
-            results = model(frame, conf=confidence)
-            annotated_frame = results[0].plot()
+            results = model(frame, conf=confidence, verbose=False)
+            
+            # Use custom Vietnamese plot function instead of default plot()
+            annotated_frame = plot_with_vietnamese_labels(results[0], frame)
+            
             out.write(annotated_frame)
             
             if results[0].boxes is not None:
-                detection_count += len(results[0].boxes)
+                boxes = results[0].boxes
+                detection_count += len(boxes)
+                
+                for box in boxes:
+                    class_id = int(box.cls[0])
+                    class_name = model.names[class_id]
+                    if class_name.lower() == "fire":
+                        fire_count += 1
+                    elif class_name.lower() == "smoke":
+                        smoke_count += 1
             
             frame_count += 1
             
@@ -398,12 +496,19 @@ async def analyze_video_file(
         fps_processed = frame_count / processing_time if processing_time > 0 else 0
         
         logger.info(f"Video processing completed: {frame_count} frames in {processing_time:.2f}s")
-        logger.info(f"Total detections: {detection_count}")
+        logger.info(f"Total detections: {detection_count} (Fire: {fire_count}, Smoke: {smoke_count})")
         
         def iterfile():
-            with open(output_path, mode="rb") as video_file:
-                yield from video_file
-            shutil.rmtree(temp_dir)
+            if not os.path.exists(output_path):
+                logger.error(f"Output file not found: {output_path}")
+                yield b"Video processing failed - output file not created"
+                return
+            
+            try:
+                with open(output_path, mode="rb") as video_file:
+                    yield from video_file
+            finally:
+                shutil.rmtree(temp_dir)
         
         return StreamingResponse(
             iterfile(),
@@ -411,6 +516,8 @@ async def analyze_video_file(
             headers={
                 "X-Frames-Processed": str(frame_count),
                 "X-Detections-Total": str(detection_count),
+                "X-Fire-Count": str(fire_count),
+                "X-Smoke-Count": str(smoke_count),
                 "X-Processing-Time": f"{processing_time:.2f}s",
                 "X-FPS": f"{fps_processed:.2f}"
             }
@@ -474,7 +581,7 @@ def camera_feed_generator(camera_index: int = 0, confidence: float = DEFAULT_CON
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n'
                    b'Content-Length: ' + f'{len(frame_bytes)}'.encode() + b'\r\n\r\n' +
-                   frame_bytes + b'\r\n')
+                   frame_bytes + b'\r\r\n')
     
     finally:
         cap.release()
@@ -497,12 +604,13 @@ async def start_camera(camera_index: int = Query(0)):
     
     if camera_active:
         return JSONResponse(content={"status": "Camera already running"})
-    
+
     camera_active = True
     logger.info(f"Camera {camera_index} started")
-    
+
     return JSONResponse(content={
         "status": "Camera started",
+        "camera_status": "online",
         "camera_index": camera_index,
         "stream_url": f"/camera/stream/?camera_index={camera_index}"
     })
@@ -513,23 +621,11 @@ async def stream_camera(
     camera_index: int = Query(0),
     confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
 ):
-    """
-    Stream real-time camera feed with detection.
-    
-    Requires camera to be started with /camera/start/ endpoint first.
-    
-    Args:
-        camera_index: Camera device index (0 for default)
-        confidence: Detection confidence threshold (0-1)
-    
-    Returns:
-        MJPEG stream (multipart/x-mixed-replace)
-    """
     validate_model_loaded()
-    
+
     if not camera_active:
         raise HTTPException(status_code=400, detail="Camera not active. Call /camera/start/ first")
-    
+
     return StreamingResponse(
         camera_feed_generator(camera_index, confidence),
         media_type="multipart/x-mixed-replace; boundary=frame"
@@ -540,22 +636,18 @@ async def stream_camera(
 async def stop_camera():
     """Stop camera streaming session."""
     global camera_active
-    
+
     camera_active = False
     logger.info("Camera stopped")
-    
-    return JSONResponse(content={"status": "Camera stopped"})
+
+    return JSONResponse(content={
+        "status": "Camera stopped",
+        "camera_status": "offline"
+    })
 
 
 @app.get("/camera/stats/")
 async def get_camera_stats():
-    """
-    Get camera streaming statistics.
-    
-    Returns:
-        JSON with session metrics including frames processed, detections,
-        elapsed time, FPS, and recent detection history
-    """
     if not camera_stats["start_time"]:
         return JSONResponse(content={"status": "Camera not started"})
     
@@ -572,3 +664,165 @@ async def get_camera_stats():
         "avg_detections_per_frame": round(avg_detections, 3),
         "recent_detections": list(detection_results)
     })
+
+
+# ============================================================================
+# Mobile Camera Real-time Detection Endpoints
+# ============================================================================
+
+@app.post("/mobile/camera/detect")
+async def mobile_camera_detect(
+    file: UploadFile = File(...),
+    confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
+):
+    """
+    Endpoint for mobile camera real-time detection.
+    Receives frame from mobile camera and returns detection results.
+    """
+    validate_model_loaded()
+    
+    try:
+        # Read image from mobile camera
+        file_content = await file.read()
+        img = read_image_bytes(file_content)
+        
+        if img is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid image format or corrupted image"
+            )
+        
+        # Run detection
+        results = model(img, conf=confidence, verbose=False)
+        result = results[0]
+        
+        # Extract detections
+        detections = extract_detections(result)
+        detection_count = count_detections_by_class(detections)
+        
+        # Store detection result for analytics
+        detection_result = {
+            "timestamp": datetime.now().isoformat(),
+            "detections": detections,
+            "count": detection_count
+        }
+        detection_results.append(detection_result)
+        
+        # Update stats
+        camera_stats["frames"] += 1
+        camera_stats["detections"] += len(detections)
+        if camera_stats["start_time"] is None:
+            camera_stats["start_time"] = time.time()
+        
+        # Annotate image with Vietnamese labels
+        annotated_img = plot_with_vietnamese_labels(result, img)
+        
+        # Encode annotated image
+        annotated_bytes = encode_image_to_jpeg(annotated_img)
+        
+        return JSONResponse(content={
+            "success": True,
+            "timestamp": detection_result["timestamp"],
+            "detections": detections,
+            "detection_count": detection_count,
+            "total_detections": len(detections),
+            "has_fire": detection_count["fire"] > 0,
+            "has_smoke": detection_count["smoke"] > 0,
+            "alert_level": get_alert_level(detection_count),
+            "message": get_detection_message(detection_count),
+            "annotated_image_size": len(annotated_bytes)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in mobile camera detection: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Detection failed: {str(e)}"
+        )
+
+
+@app.post("/mobile/camera/detect_with_image")
+async def mobile_camera_detect_with_image(
+    file: UploadFile = File(...),
+    confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
+):
+    """
+    Mobile camera detection endpoint that returns annotated image.
+    """
+    validate_model_loaded()
+    
+    try:
+        # Read image from mobile camera
+        file_content = await file.read()
+        img = read_image_bytes(file_content)
+        
+        if img is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid image format or corrupted image"
+            )
+        
+        # Run detection
+        results = model(img, conf=confidence, verbose=False)
+        result = results[0]
+        
+        # Extract detections
+        detections = extract_detections(result)
+        detection_count = count_detections_by_class(detections)
+        
+        # Annotate image with Vietnamese labels
+        annotated_img = plot_with_vietnamese_labels(result, img)
+        
+        # Encode annotated image
+        annotated_bytes = encode_image_to_jpeg(annotated_img)
+        
+        # Store detection result
+        detection_result = {
+            "timestamp": datetime.now().isoformat(),
+            "detections": detections,
+            "count": detection_count
+        }
+        detection_results.append(detection_result)
+        
+        # Return annotated image as response
+        return StreamingResponse(
+            io.BytesIO(annotated_bytes),
+            media_type="image/jpeg",
+            headers={
+                "X-Detection-Count": str(len(detections)),
+                "X-Fire-Count": str(detection_count["fire"]),
+                "X-Smoke-Count": str(detection_count["smoke"]),
+                "X-Alert-Level": get_alert_level(detection_count),
+                "X-Has-Fire": str(detection_count["fire"] > 0),
+                "X-Has-Smoke": str(detection_count["smoke"] > 0)
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in mobile camera detection with image: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Detection failed: {str(e)}"
+        )
+
+
+def get_alert_level(detection_count: Dict[str, int]) -> str:
+    """Determine alert level based on detections."""
+    if detection_count["fire"] > 0:
+        return "HIGH"  # Fire detected - highest priority
+    elif detection_count["smoke"] > 0:
+        return "MEDIUM"  # Smoke detected - medium priority
+    else:
+        return "LOW"  # No detection
+
+
+def get_detection_message(detection_count: Dict[str, int]) -> str:
+    """Get detection message in Vietnamese."""
+    if detection_count["fire"] > 0 and detection_count["smoke"] > 0:
+        return f"⚠️ CẢNH BÁO: Phát hiện {detection_count['fire']} điểm lửa và {detection_count['smoke']} điểm khói!"
+    elif detection_count["fire"] > 0:
+        return f"🔥 CẢNH BÁO: Phát hiện {detection_count['fire']} điểm lửa!"
+    elif detection_count["smoke"] > 0:
+        return f"💨 CẢNH BÁO: Phát hiện {detection_count['smoke']} điểm khói!"
+    else:
+        return "✅ Không phát hiện lửa hoặc khói"
