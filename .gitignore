@@ -1,0 +1,130 @@
+# Data directories - chặn toàn bộ dữ liệu training
+data/
+dataset/
+datasets/
+*.dataset
+
+# Model files - chặn các file model đã train
+runs/
+weights/
+*.pt
+*.pth
+*.onnx
+*.engine
+*.trt
+best.pt
+last.pt
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+/lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+*.out
+
+# Tensorboard logs
+tensorboard_logs/
+tb_logs/
+lightning_logs/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Cache files
+.cache/
+*.cache
+
+# Config files with sensitive data
+config.json
+secrets.json
+.env
+.env.local
+
+# Large files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Training outputs
+output/
+results/
+experiments/
+checkpoints/
+
+# Flutter/Dart (cho phần app)
+app/build/
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.packages
+app/.pub-cache/
+app/.pub/
+app/pubspec.lock
+
+# Android
+app/android/.gradle/
+app/android/captures/
+app/android/gradlew
+app/android/gradlew.bat
+app/android/local.properties
+app/android/app/debug/
+app/android/app/profile/
+app/android/app/release/
+
+# iOS
+app/ios/Flutter/flutter_assets/
+app/ios/ServiceDefinitions.json
+app/ios/Runner/GeneratedPluginRegistrant.*
