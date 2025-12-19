@@ -19,6 +19,110 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
+  // Chạy app trước, khởi tạo services sau (không block UI)
+  print('🚀 Starting FireAlertApp...');
+  runApp(const FireAlertApp());
+  print('✅ FireAlertApp started');
+
+  // Initialize services sau khi app đã chạy (không block)
+  _initializeServicesAsync();
+}
+
+class FireAlertApp extends StatelessWidget {
+  const FireAlertApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Hệ Thống Báo Cháy',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Color(0xFF667eea),
+          brightness: Brightness.light,
+        ),
+        // Tạm thời tắt GoogleFonts để debug màn trắng
+        // textTheme: _getTextTheme(),
+        // fontFamily: _getFontFamily(),
+        cardTheme: CardTheme(
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
+        ),
+        appBarTheme: AppBarTheme(
+          centerTitle: true,
+          elevation: 0,
+          titleTextStyle: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+      ),
+      home: const Wrapper(),
+      // Error handling để tránh màn trắng khi có lỗi
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.0)),
+          child: child ?? const SizedBox(),
+        );
+      },
+    );
+  }
+  
+  // Helper để load font an toàn
+  static TextTheme _getTextTheme() {
+    try {
+      return GoogleFonts.interTextTheme();
+    } catch (e) {
+      print(' Error loading GoogleFonts, using default: $e');
+      return Typography.material2021().englishLike;
+    }
+  }
+  
+  static String? _getFontFamily() {
+    try {
+      return GoogleFonts.inter().fontFamily;
+    } catch (e) {
+      print(' Error loading GoogleFonts fontFamily, using default: $e');
+      return null;
+    }
+  }
+  
+  static TextStyle _getAppBarTextStyle() {
+    try {
+      return GoogleFonts.poppins(
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+        color: Colors.white,
+      );
+    } catch (e) {
+      print(' Error loading GoogleFonts.poppins, using default: $e');
+      return TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+        color: Colors.white,
+      );
+    }
+  }
+}
+
+// Initialize services async để không block UI
+Future<void> _initializeServicesAsync() async {
+  // Delay một chút để app render xong
+  await Future.delayed(Duration(milliseconds: 500));
+  
   // Initialize Firebase với error handling riêng
   try {
     await Firebase.initializeApp(
@@ -57,52 +161,4 @@ Future<void> main() async {
       print('Alert polling start error: $e');
     }
   });
-
-  runApp(const FireAlertApp());
-}
-
-class FireAlertApp extends StatelessWidget {
-  const FireAlertApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Hệ Thống Báo Cháy',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Color(0xFF667eea),
-          brightness: Brightness.light,
-        ),
-        textTheme: GoogleFonts.interTextTheme(),
-        fontFamily: GoogleFonts.inter().fontFamily,
-        cardTheme: CardTheme(
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          ),
-        ),
-        appBarTheme: AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-          titleTextStyle: GoogleFonts.poppins(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
-      ),
-      home: const Wrapper(),
-    );
-  }
 }
