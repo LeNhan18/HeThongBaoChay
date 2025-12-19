@@ -80,7 +80,9 @@ class _MainHomePageState extends State<MainHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    print('📱 MainHomePage: Building with selectedIndex=$_selectedIndex');
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar:
           _selectedIndex == 1
               ? null

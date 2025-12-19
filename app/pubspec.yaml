@@ -64,6 +64,13 @@ dependencies:
   # Camera and real-time detection
   camera: ^0.10.5+9
   permission_handler: ^11.0.1
+  
+  # OpenStreetMap (MIỄN PHÍ - KHÔNG CẦN API KEY)
+  flutter_map: ^8.2.2
+  latlong2: ^0.9.1
+  
+  # Để mở URL/browser
+  url_launcher: ^6.2.0
 
 dev_dependencies:
   flutter_test:

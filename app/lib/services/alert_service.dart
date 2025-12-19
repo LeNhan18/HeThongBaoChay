@@ -311,7 +311,7 @@ class AlertService {
             isFireAlert: isFireAlert,
           );
 
-          // Save to local alerts
+          // Save to local alerts (bao gồm thông tin vị trí)
           _alerts.insert(0, {
             'id': alert['id'].toString(),
             'camera_name': 'Live Detection (${alert['esp32_ip']})',
@@ -325,6 +325,12 @@ class AlertService {
             'alert_level': 'HIGH',
             'message': alert['vietnamese_message'] ?? alert['body'],
             'detections': [],
+            // TÍNH NĂNG MỚI: Thông tin vị trí
+            'show_location': alert['show_location'] ?? false,
+            'fire_duration_seconds': alert['fire_duration_seconds'] ?? 0.0,
+            'latitude': alert['latitude'],
+            'longitude': alert['longitude'],
+            'address': alert['address'],
           });
 
           // Mark as read on backend

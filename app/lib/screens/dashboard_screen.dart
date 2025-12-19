@@ -16,19 +16,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       body: FutureBuilder<List<Camera>>(
         future: _apiService.fetchCameras(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return Container(
+              color: Colors.grey[50],
+              child: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Đang tải danh sách camera...'),
+                  ],
+                ),
+              ),
+            );
           }
 
           if (snapshot.hasError) {
-            return Center(child: Text('Lỗi: ${snapshot.error}'));
+            return Container(
+              color: Colors.grey[50],
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 64, color: Colors.red),
+                    SizedBox(height: 16),
+                    Text('Lỗi: ${snapshot.error}', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            );
           }
 
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('Không có camera nào'));
+            return Container(
+              color: Colors.grey[50],
+              child: const Center(
+                child: Text('Không có camera nào'),
+              ),
+            );
           }
 
           return ListView.builder(
