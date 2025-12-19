@@ -37,7 +37,7 @@ MODEL_PATH = os.getenv(
 
 API_TITLE = "Fire and Smoke Detection API"
 API_VERSION = "2.0"
-DEFAULT_CONFIDENCE = 0.25
+DEFAULT_CONFIDENCE = 0.45  # Tăng từ 0.25 lên 0.45 để giảm false positives (bóng đèn đỏ)
 
 # File size limits
 MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
@@ -89,6 +89,10 @@ fcm_tokens: List[str] = []  # Store FCM tokens from mobile apps
 # Alert storage for real-time notifications
 pending_alerts: List[Dict[str, Any]] = []
 alert_counter: int = 0
+
+# Fire duration tracking - TÍNH NĂNG MỚI
+fire_duration_tracker: Dict[str, Dict[str, Any]] = {}  # {esp32_ip: {"start_time": datetime, "last_fire_time": datetime, "duration_seconds": float}}
+FIRE_DURATION_THRESHOLD = 30  # 30 giây
 
 # Vietnamese class name mapping
 VIETNAMESE_LABELS = {
@@ -162,6 +166,87 @@ def validate_ip_address(ip: str) -> None:
             detail=f"Invalid IP address format: {ip}"
         )
 
+def track_fire_duration(esp32_ip: str, fire_count: int, smoke_count: int) -> Dict[str, Any]:
+    """
+    Track thời gian cháy liên tục của ESP32
+    Returns: {
+        "is_long_fire": bool,
+        "duration_seconds": float,
+        "show_location": bool
+    }
+    """
+    global fire_duration_tracker
+    
+    current_time = datetime.now()
+    has_fire = fire_count > 0 or smoke_count > 0
+    
+    if esp32_ip not in fire_duration_tracker:
+        fire_duration_tracker[esp32_ip] = {
+            "start_time": None,
+            "last_fire_time": None,
+            "duration_seconds": 0.0
+        }
+    
+    tracker = fire_duration_tracker[esp32_ip]
+    
+    if has_fire:
+        # Có lửa/khói
+        if tracker["start_time"] is None:
+            # Bắt đầu track
+            tracker["start_time"] = current_time
+            tracker["last_fire_time"] = current_time
+            tracker["duration_seconds"] = 0.0
+            logger.info(f"🔥 Fire tracking STARTED for ESP32 {esp32_ip}")
+        else:
+            # Đang track, cập nhật duration
+            elapsed = (current_time - tracker["start_time"]).total_seconds()
+            tracker["duration_seconds"] = elapsed
+            tracker["last_fire_time"] = current_time
+            
+            if elapsed >= FIRE_DURATION_THRESHOLD:
+                logger.warning(f"🚨 LONG FIRE DETECTED: ESP32 {esp32_ip} - {elapsed:.1f}s >= {FIRE_DURATION_THRESHOLD}s")
+                return {
+                    "is_long_fire": True,
+                    "duration_seconds": elapsed,
+                    "show_location": True
+                }
+    else:
+        # Không có lửa/khói nữa -> reset
+        if tracker["start_time"] is not None:
+            duration = tracker["duration_seconds"]
+            logger.info(f"✅ Fire tracking RESET for ESP32 {esp32_ip} (lasted {duration:.1f}s)")
+            tracker["start_time"] = None
+            tracker["last_fire_time"] = None
+            tracker["duration_seconds"] = 0.0
+    
+    return {
+        "is_long_fire": False,
+        "duration_seconds": tracker["duration_seconds"],
+        "show_location": False
+    }
+
+def get_esp32_location(esp32_ip: str) -> Dict[str, Any]:
+    """
+    Lấy GPS location của ESP32 từ config hoặc environment variables
+    """
+    # Có thể lưu trong database hoặc config file
+    # Tạm thời dùng environment variables hoặc default
+    ip_key = esp32_ip.replace('.', '_')
+    latitude = float(os.getenv(
+        f"ESP32_{ip_key}_LATITUDE",
+        os.getenv("ESP32_LATITUDE", "10.853912")
+    ))  # Default: TP.HCM
+    longitude = float(os.getenv(
+        f"ESP32_{ip_key}_LONGITUDE",
+        os.getenv("ESP32_LONGITUDE", "106.770743")
+    ))
+    
+    return {
+        "latitude": latitude,
+        "longitude": longitude,
+        "address": f"ESP32-CAM ({esp32_ip})"
+    }
+
 def read_image_bytes(file_content: bytes) -> Optional[np.ndarray]:
 
     try:
@@ -214,6 +299,60 @@ def count_detections_by_class(detections: List[Dict]) -> Dict[str, int]:
         if class_name in counts:
             counts[class_name] += 1
     return counts
+
+def filter_false_positives_fire(detections: List[Dict[str, Any]], img: np.ndarray) -> List[Dict[str, Any]]:
+    """
+    Filter false positives (như bóng đèn đỏ, đèn giao thông, v.v.)
+    
+    Args:
+        detections: List of detection dictionaries
+        img: Image array để phân tích
+    
+    Returns:
+        Filtered list of detections
+    """
+    if not detections or img is None:
+        return detections
+    
+    filtered = []
+    img_height, img_width = img.shape[:2]
+    
+    for detection in detections:
+        # Chỉ filter các detection là "fire"
+        if detection["class"].lower() != "fire":
+            filtered.append(detection)
+            continue
+        
+        bbox = detection["bbox"]
+        x1, y1, x2, y2 = bbox["x1"], bbox["y1"], bbox["x2"], bbox["y2"]
+        
+        # Tính kích thước bounding box
+        width = x2 - x1
+        height = y2 - y1
+        area = width * height
+        img_area = img_width * img_height
+        
+        # Filter các detection quá nhỏ (có thể là noise)
+        if area < img_area * 0.001:  # Nhỏ hơn 0.1% diện tích ảnh
+            continue
+        
+        # Filter các detection quá lớn (có thể là false positive)
+        if area > img_area * 0.5:  # Lớn hơn 50% diện tích ảnh
+            continue
+        
+        # Filter các detection ở góc trên cùng (thường là đèn giao thông)
+        if y1 < img_height * 0.1 and height < img_height * 0.15:
+            # Kiểm tra thêm: nếu confidence thấp và ở góc trên thì skip
+            if detection["confidence"] < 0.6:
+                continue
+        
+        # Nếu confidence quá thấp thì skip
+        if detection["confidence"] < 0.3:
+            continue
+        
+        filtered.append(detection)
+    
+    return filtered
 
 def plot_with_vietnamese_labels(result, img):
     """Custom plot function with Vietnamese labels and enhanced visualization."""
@@ -296,7 +435,7 @@ def plot_with_vietnamese_labels(result, img):
                 #label_y + baseline +5 : chiều cao chữ + phần dưới chữ + 5px padding phía dưới text
                 [x1 ,label_y + baseline + 5]
             ],np.int32)
-
+            
             # Create overlay for transparency
             overlay = annotated_img.copy()
             cv2.fillPoly(overlay, [label_bg_points], color)
@@ -393,7 +532,7 @@ def predict_image_with_annotation(
             status_code=400,
             content={"error": "File size exceeds maximum allowed size of 10MB"}
         )
-    
+
     validate_model_loaded()
     
     if not file.filename.endswith(('.jpg', '.jpeg', '.png')):
@@ -417,6 +556,9 @@ def predict_image_with_annotation(
         result = results[0]
 
         detections = extract_detections(result)
+        
+        # Áp dụng filter để loại bỏ false positives (bóng đèn đỏ, v.v.)
+        detections = filter_false_positives_fire(detections, img)
 
         # Use custom Vietnamese plot function for consistent annotation
         annotated_img = plot_with_vietnamese_labels(result, img)
@@ -535,7 +677,7 @@ def analyze_video_file(
             y_offset = (target_size - new_height) // 2
             x_offset = (target_size - new_width) // 2
             padded_frame[y_offset:y_offset+new_height, x_offset:x_offset+new_width] = resized_frame
-
+            
             # Run detection on processed frame
             results = model(padded_frame, conf=confidence, verbose=False)
             
@@ -755,6 +897,10 @@ async def mobile_camera_detect(
         
         # Extract detections
         detections = extract_detections(result)
+        
+        # Áp dụng filter để loại bỏ false positives (bóng đèn đỏ, v.v.)
+        detections = filter_false_positives_fire(detections, img)
+        
         detection_count = count_detections_by_class(detections)
         
         # Store detection result for analytics
@@ -843,6 +989,10 @@ async def _esp32_capture_helper(
     
     # Extract detections
     detections = extract_detections(result)
+    
+    # Áp dụng filter để loại bỏ false positives (bóng đèn đỏ, v.v.)
+    detections = filter_false_positives_fire(detections, img)
+    
     detection_count = count_detections_by_class(detections)
     
     # Return annotated image if requested
@@ -957,7 +1107,7 @@ async def esp32_capture_with_bounding_boxes(
         raise HTTPException(
             status_code=500,
             detail=f"ESP32 bounding box analysis failed: {str(e)}"
-        )
+    )
 
 
 def get_alert_level(detection_count: Dict[str, int]) -> str:
@@ -1086,6 +1236,19 @@ async def send_mobile_alert(alert_data: dict):
         # Log the alert
         logger.warning(f"🔥 FIRE ALERT: Fire={fire_count}, Smoke={smoke_count}, ESP32={esp32_ip}, Conf={confidence:.2%}")
         
+        # ============================================================
+        # TÍNH NĂNG MỚI: Track thời gian cháy và hiển thị vị trí
+        # ============================================================
+        fire_duration_info = track_fire_duration(esp32_ip, fire_count, smoke_count)
+        show_location = fire_duration_info["show_location"]
+        fire_duration_seconds = fire_duration_info["duration_seconds"]
+        
+        # Luôn lấy GPS location để hiển thị trong chi tiết cảnh báo
+        location_data = get_esp32_location(esp32_ip)
+        if show_location:
+            logger.warning(f"📍 LOCATION ENABLED: ESP32 {esp32_ip} - Fire duration: {fire_duration_seconds:.1f}s")
+        # ============================================================
+        
         # Send FCM push notification
         fcm_title = "🔥 CẢNH BÁO CHÁY!"
         fcm_body = f"Phát hiện {fire_count} lửa, {smoke_count} khói từ ESP32-CAM ({esp32_ip})"
@@ -1113,7 +1276,13 @@ async def send_mobile_alert(alert_data: dict):
             "source": alert_data.get('source', 'Live Detection'),
             "timestamp": datetime.now().isoformat(),
             "vietnamese_message": message,
-            "read": False
+            "read": False,
+            # TÍNH NĂNG MỚI: Thông tin vị trí (luôn gửi tọa độ)
+            "show_location": show_location,  # True nếu cháy >= 30s
+            "fire_duration_seconds": fire_duration_seconds,
+            "latitude": location_data["latitude"],
+            "longitude": location_data["longitude"],
+            "address": location_data["address"]
         }
         
         # Add to pending alerts for app to fetch
