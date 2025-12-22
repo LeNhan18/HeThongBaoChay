@@ -31,6 +31,7 @@ class _PredictScreenState extends State<PredictScreen> {
   bool _isProcessing = false;
   Map<String, dynamic>? _predictionResult;
   VideoPlayerController? _videoController;
+  Size? _originalVideoSize; // Lưu kích thước ban đầu của video gốc
 
   @override
   void dispose() {
@@ -47,6 +48,7 @@ class _PredictScreenState extends State<PredictScreen> {
               image; // Always use XFile for cross-platform compatibility
           _fileType = 'image';
           _predictionResult = null;
+          _originalVideoSize = null; // Reset kích thước video khi chọn ảnh
           _videoController?.dispose();
           _videoController = null;
         });
@@ -71,6 +73,7 @@ class _PredictScreenState extends State<PredictScreen> {
           _selectedFile = video;
           _fileType = 'video';
           _predictionResult = null;
+          _originalVideoSize = null; // Reset kích thước ban đầu
         });
 
         _videoController?.dispose();
@@ -84,6 +87,10 @@ class _PredictScreenState extends State<PredictScreen> {
         }
 
         _videoController!.initialize().then((_) {
+          // Lưu kích thước ban đầu của video gốc
+          if (_videoController!.value.isInitialized) {
+            _originalVideoSize = _videoController!.value.size;
+          }
           setState(() {});
         });
       }
@@ -494,23 +501,23 @@ class _PredictScreenState extends State<PredictScreen> {
                               _videoController!.value.isInitialized)
                           ? Container(
                             width: double.infinity,
-                            height: 300, // Fixed height for consistency
                             decoration: BoxDecoration(
                               color: Colors.black,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: FittedBox(
-                                fit:
-                                    BoxFit
-                                        .contain, // Maintain aspect ratio without cropping
-                                child: SizedBox(
-                                  width: _videoController!.value.size.width,
-                                  height: _videoController!.value.size.height,
-                                  child: VideoPlayer(_videoController!),
-                                ),
-                              ),
+                              child: _originalVideoSize != null
+                                  ? AspectRatio(
+                                      // Sử dụng tỷ lệ khung hình ban đầu của video gốc
+                                      aspectRatio: _originalVideoSize!.width / _originalVideoSize!.height,
+                                      child: VideoPlayer(_videoController!),
+                                    )
+                                  : AspectRatio(
+                                      // Fallback: sử dụng tỷ lệ khung hình hiện tại
+                                      aspectRatio: _videoController!.value.aspectRatio,
+                                      child: VideoPlayer(_videoController!),
+                                    ),
                             ),
                           )
                           : Center(

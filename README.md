@@ -36,6 +36,49 @@ Hệ thống báo cháy thông minh sử dụng:
 - **ESP32-CAM**: Camera giám sát không dây
 - **Firebase FCM**: Push notifications miễn phí
 
+### Kiến Trúc Hệ Thống
+
+Hệ thống được thiết kế theo kiến trúc 4 tầng chính:
+
+<div align="center">
+
+![Kiến Trúc Hệ Thống](assets/images/z7354004843966_028e63c6bdfbd3e444d974b5a8ac2b02.jpg)
+
+*Sơ đồ kiến trúc hệ thống báo cháy thông minh*
+
+</div>
+
+**Mô tả các tầng:**
+
+1. **Hardware Layer (Tầng Phần Cứng)**
+   - ESP32-CAM Camera Module: Thu thập video feed qua RTSP/HTTP
+   - Streaming video trực tiếp đến Processing Layer
+
+2. **Processing Layer (Tầng Xử Lý)**
+   - **OpenCV**: Xử lý frame-by-frame từ video stream
+   - **YOLO11 Model**: Phát hiện lửa và khói với bounding boxes
+   - Tạo sự kiện "Fire Detected" kèm timestamp
+   - Vẽ bounding boxes lên video để hiển thị
+
+3. **Backend Layer (Tầng Backend)**
+   - **Backend API**: Nhận sự kiện phát hiện cháy và xử lý
+   - **Firebase Cloud Messaging**: Gửi push notification đến mobile app
+   - **Display Layer**: Hiển thị video với bounding boxes trên máy tính
+   - Quản lý tọa độ và truy vấn vị trí đám cháy
+
+4. **Mobile App Layer (Tầng Ứng Dụng Di Động)**
+   - **Flutter App**: Nhận push notification và hiển thị cảnh báo
+   - **Map View**: Hiển thị vị trí đám cháy trên bản đồ
+   - **Timer Service**: Đếm ngược 30 giây sau khi nhận cảnh báo
+   - **Notification UI**: Hiển thị alert và thông tin chi tiết
+
+**Luồng hoạt động:**
+```
+ESP32-CAM → OpenCV/YOLO11 → Backend API → Firebase FCM → Flutter App
+                ↓                              ↓
+         Display Layer (PC)            Map View + Alert
+```
+
 ##  Tính Năng Chính
 
 ###  Phát Hiện Real-time
