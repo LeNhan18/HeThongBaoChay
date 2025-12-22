@@ -9,7 +9,7 @@
 
 </div>
 
-Dự án phát triển hệ thống báo cháy thông minh sử dụng YOLOv8 AI để phát hiện lửa và khói với độ chính xác cao, tích hợp Flutter mobile app và ESP32-CAM.
+Dự án phát triển hệ thống báo cháy thông minh sử dụng YOLOv11 AI để phát hiện lửa và khói với độ chính xác cao, tích hợp Flutter mobile app và ESP32-CAM.
 
 ##  Mục Lục
 
@@ -20,7 +20,7 @@ Dự án phát triển hệ thống báo cháy thông minh sử dụng YOLOv8 AI
 5. [Hướng Dẫn Sử Dụng](#hướng-dẫn-sử-dụng)
 6. [Cấu Hình ESP32-CAM](#cấu-hình-esp32-cam)
 7. [Cấu Hình Firebase](#cấu-hình-firebase)
-8. [Training Model YOLOv8](#training-model-yolov8)
+8. [Training Model YOLOv11](#training-model-yolov11)
 9. [API Documentation](#api-documentation)
 10. [Troubleshooting](#troubleshooting)
 11. [Tài Liệu Kỹ Thuật](#tài-liệu-kỹ-thuật)
@@ -30,7 +30,7 @@ Dự án phát triển hệ thống báo cháy thông minh sử dụng YOLOv8 AI
 ##  Tổng Quan
 
 Hệ thống báo cháy thông minh sử dụng:
-- **YOLOv8 AI Model**: Phát hiện lửa và khói với độ chính xác cao
+- **YOLOv11 AI Model**: Phát hiện lửa và khói với độ chính xác cao
 - **Flutter Mobile App**: Giao diện người dùng đẹp, dễ sử dụng
 - **FastAPI Backend**: API server xử lý detection real-time
 - **ESP32-CAM**: Camera giám sát không dây
@@ -321,7 +321,7 @@ if (hasFireDetection) {
 
 ---
 
-## 🎓 Training Model YOLOv8
+## 🎓 Training Model YOLOv11
 
 ### Cấu Trúc Dữ Liệu
 
@@ -397,11 +397,11 @@ results = model.train(
 
 ### Model Sizes
 
-- `yolov8n.pt`: Nano (nhẹ nhất, nhanh nhất)
-- `yolov8s.pt`: Small
-- `yolov8m.pt`: Medium
-- `yolov8l.pt`: Large
-- `yolov8x.pt`: Extra Large (chính xác nhất)
+- `yolov11n.pt`: Nano (nhẹ nhất, nhanh nhất)
+- `yolov11s.pt`: Small
+- `yolov11m.pt`: Medium
+- `yolov11l.pt`: Large
+- `yolov11x.pt`: Extra Large (chính xác nhất)
 
 ### Kết Quả Mong Đợi
 
@@ -543,7 +543,7 @@ python -c "import torch; print(torch.cuda.is_available())"
 **Giải pháp:**
 - Giảm `batch` size (4, 8, 16)
 - Giảm `imgsz` (416, 480, 640)
-- Sử dụng model nhỏ hơn (yolov8n)
+- Sử dụng model nhỏ hơn (yolov11n)
 
 ### ESP32 Không Kết Nối
 
@@ -600,7 +600,7 @@ Duration(milliseconds: 1000)  // thay vì 500ms
 
 ### Best Practices
 
-1. **Data Augmentation**: Đã được tích hợp sẵn trong YOLOv8
+1. **Data Augmentation**: Đã được tích hợp sẵn trong YOLOv11
 2. **Transfer Learning**: Sử dụng pre-trained weights
 3. **Early Stopping**: Tránh overfitting
 4. **Model Ensemble**: Kết hợp nhiều models để tăng độ chính xác
@@ -610,7 +610,7 @@ Duration(milliseconds: 1000)  // thay vì 500ms
 ##  Tips Cải Thiện Model
 
 1. **Tăng dữ liệu**: Thêm ảnh training đa dạng
-2. **Data Augmentation**: Đã được tích hợp sẵn trong YOLOv8
+2. **Data Augmentation**: Đã được tích hợp sẵn trong YOLOv11
 3. **Hyperparameter tuning**: Điều chỉnh learning rate, batch size
 4. **Transfer learning**: Sử dụng pre-trained weights
 5. **Ensemble**: Kết hợp nhiều models
@@ -624,7 +624,7 @@ Duration(milliseconds: 1000)  // thay vì 500ms
 - Kèm theo system info và error traceback
 
 ### Tài Liệu Tham Khảo
-- [YOLOv8 Documentation](https://docs.ultralytics.com/)
+- [YOLOv11 Documentation](https://docs.ultralytics.com/)
 - [PyTorch Documentation](https://pytorch.org/docs/)
 - [Flutter Documentation](https://docs.flutter.dev/)
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
