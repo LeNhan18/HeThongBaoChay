@@ -234,11 +234,11 @@ def get_esp32_location(esp32_ip: str) -> Dict[str, Any]:
     ip_key = esp32_ip.replace('.', '_')
     latitude = float(os.getenv(
         f"ESP32_{ip_key}_LATITUDE",
-        os.getenv("ESP32_LATITUDE", "10.853912")
+        os.getenv("ESP32_LATITUDE", "10.855417")
     ))  # Default: TP.HCM
     longitude = float(os.getenv(
         f"ESP32_{ip_key}_LONGITUDE",
-        os.getenv("ESP32_LONGITUDE", "106.770743")
+        os.getenv("ESP32_LONGITUDE", "106.785759")
     ))
     
     return {
@@ -1028,7 +1028,6 @@ async def esp32_capture_and_analyze(
         # Calculate fire detection
         fire_detected = detection_count["fire"] > 0 or detection_count["smoke"] > 0
         max_confidence = max([d["confidence"] for d in detections]) if detections else 0.0
-        
         return JSONResponse(content={
             "timestamp": datetime.now().isoformat(),
             "esp32_ip": esp32_ip,
