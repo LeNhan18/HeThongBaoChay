@@ -65,6 +65,7 @@ class AdvancedFireSmokeTrainer:
         self.enable_tensorboard = enable_tensorboard
         self.use_ensemble = use_ensemble
 
+
         
         # Tạo thư mục kết quả với timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
