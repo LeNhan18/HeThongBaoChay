@@ -157,9 +157,6 @@ HeThongBaoChay/
 # Tạo virtual environment (khuyến nghị)
 python -m venv venv
 .\venv\Scripts\Activate.ps1  # Windows PowerShell
-# hoặc
-source venv/bin/activate      # Linux/Mac
-
 # Cài đặt packages
 pip install -r requirements.txt
 ```
@@ -168,19 +165,25 @@ pip install -r requirements.txt
 
 ```bash
 cd e:\HeThongBaoChay
-python main.py
-```
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
+```
 Server sẽ chạy tại `http://localhost:8000`
 
-### Bước 3: Cấu Hình Flutter App
+### Bước 3: Cấu hình ESP32-CAM
+sửa IP ESP32 CAM của bạn.
+```bash
+py test_camera_api.py
+```
+
+### Bước 4: Cấu Hình Flutter App
 
 ```bash
 cd app
 flutter pub get
 ```
 
-### Bước 4: Cập Nhật IP Address
+### Bước 5: Cập Nhật IP Address
 
 Sửa file `app/lib/constants.dart`:
 ```dart
@@ -188,7 +191,7 @@ Sửa file `app/lib/constants.dart`:
 const String API_BASE_URL = 'http://192.168.1.XXX:8000';
 ```
 
-### Bước 5: Chạy App
+### Bước 6: Chạy App
 
 ```bash
 flutter run
