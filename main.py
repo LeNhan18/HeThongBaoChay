@@ -234,11 +234,11 @@ def get_esp32_location(esp32_ip: str) -> Dict[str, Any]:
     ip_key = esp32_ip.replace('.', '_')
     latitude = float(os.getenv(
         f"ESP32_{ip_key}_LATITUDE",
-        os.getenv("ESP32_LATITUDE", "10.855417")
+        os.getenv("ESP32_LATITUDE", "10.84149")
     ))  # Default: TP.HCM
     longitude = float(os.getenv(
         f"ESP32_{ip_key}_LONGITUDE",
-        os.getenv("ESP32_LONGITUDE", "106.785759")
+        os.getenv("ESP32_LONGITUDE", "106.78928")
     ))
     
     return {
