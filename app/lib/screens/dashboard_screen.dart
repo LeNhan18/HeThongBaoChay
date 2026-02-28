@@ -69,25 +69,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 margin: const EdgeInsets.all(8.0),
                 child: ListTile(
                   leading: Icon(
-                    camera.status == 'online'
-                        ? Icons.videocam
-                        : Icons.videocam_off,
+                    camera.isESP32
+                        ? (camera.status == 'online'
+                            ? Icons.camera_alt
+                            : Icons.camera_alt_outlined)
+                        : (camera.status == 'online'
+                            ? Icons.videocam
+                            : Icons.videocam_off),
                     color:
-                        camera.status == 'online' ? Colors.green : Colors.grey,
+                        camera.status == 'online' 
+                            ? (camera.isESP32 ? Colors.orange : Colors.green)
+                            : Colors.grey,
                     size: 30,
                   ),
                   title: Text(
                     camera.name,
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  subtitle: Text(
-                    camera.status == 'online' ? 'Trực tuyến' : 'Ngoại tuyến',
-                    style: TextStyle(
-                      color:
-                          camera.status == 'online'
-                              ? Colors.green
-                              : Colors.grey,
-                    ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        camera.status == 'online' ? 'Trực tuyến' : 'Ngoại tuyến',
+                        style: TextStyle(
+                          color:
+                              camera.status == 'online'
+                                  ? Colors.green
+                                  : Colors.grey,
+                        ),
+                      ),
+                      if (camera.isESP32 && camera.ip != null)
+                        Text(
+                          camera.port != null
+                              ? 'IP: ${camera.ip}:${camera.port}'
+                              : 'IP: ${camera.ip}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                    ],
                   ),
                   trailing: const Icon(Icons.arrow_forward_ios),
                   onTap: () {
