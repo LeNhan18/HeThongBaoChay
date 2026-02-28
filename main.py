@@ -1384,3 +1384,75 @@ async def mark_alert_read(request_data: dict):
             detail=f"Failed to mark alert as read: {str(e)}"
         )
 
+
+# @app.post("/ip_camera/capture")
+# async def ip_camera_capture_and_analyze(
+#         camera_url: str = Query(..., description="Full URL to camera snapshot endpoint"),
+#         username: Optional[str] = Query(None, description="Camera username"),
+#         password: Optional[str] = Query(None, description="Camera password"),
+#         confidence: float = Query(DEFAULT_CONFIDENCE, ge=0, le=1)
+# ):
+#     """
+#     Capture image from IP camera and analyze for fire/smoke detection.
+#
+#     Supports various IP camera formats:
+#     - Hikvision: http://ip:port/ISAPI/Streaming/channels/1/picture
+#     - Dahua: http://ip:port/cgi-bin/snapshot.cgi
+#     - Generic: http://ip:port/snapshot.jpg
+#     - With auth: http://username:password@ip:port/snapshot.jpg
+#     """
+#     try:
+#         # Prepare authentication if provided
+#         auth = None
+#         if username and password:
+#             auth = (username, password)
+#
+#         # Capture image from IP camera
+#         response = requests.get(
+#             camera_url,
+#             auth=auth,
+#             headers={'Accept': 'image/jpeg'},
+#             timeout=10
+#         )
+#
+#         if response.status_code != 200:
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail=f"Failed to capture from IP camera: {response.status_code}"
+#             )
+#
+#         # Process image (same as ESP32)
+#         img_bytes = response.content
+#         img = read_image_bytes(img_bytes)
+#
+#         if img is None:
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail="Invalid image data from IP camera"
+#             )
+#
+#         # Run YOLO detection (same logic as ESP32)
+#         results = model(img, conf=confidence, verbose=False)
+#         result = results[0]
+#         detections = extract_detections(result)
+#         detections = filter_false_positives_fire(detections, img)
+#         detection_count = count_detections_by_class(detections)
+#
+#         return JSONResponse(content={
+#             "timestamp": datetime.now().isoformat(),
+#             "camera_url": camera_url,
+#             "fire_detected": detection_count["fire"] > 0 or detection_count["smoke"] > 0,
+#             "confidence": max([d["confidence"] for d in detections]) if detections else 0.0,
+#             "detections": detections,
+#             "fire_count": detection_count["fire"],
+#             "smoke_count": detection_count["smoke"],
+#             "total_detections": len(detections),
+#             "alert_level": get_alert_level(detection_count),
+#             "message": get_detection_message(detection_count),
+#         })
+#
+#     except requests.exceptions.RequestException as e:
+#         raise HTTPException(
+#             status_code=500,
+#             detail=f"IP camera connection error: {str(e)}"
+#         )
