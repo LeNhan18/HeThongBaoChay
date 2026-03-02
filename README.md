@@ -70,7 +70,7 @@ Hệ thống được thiết kế theo kiến trúc 4 tầng chính:
 
 ![Kiến Trúc Hệ Thống](assets/images/z7354004843966_028e63c6bdfbd3e444d974b5a8ac2b02.jpg)
 
-*Sơ đồ kiến trúc hệ thống báo cháy thông minh*
+*Sơ đồ kiến trúc hệ thống báo cháy thông minnh*
 
 </div>
 
