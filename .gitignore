@@ -1,3 +1,7 @@
+# =============================================================================
+# HeThongBaoChay - Hệ Thống Báo Cháy Thông Minh
+# =============================================================================
+
 # Data directories - chặn toàn bộ dữ liệu training
 data/
 dataset/
@@ -103,6 +107,8 @@ output/
 results/
 experiments/
 checkpoints/
+training_results_*/
+report_images*/
 
 # Flutter/Dart (cho phần app)
 app/build/

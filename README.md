@@ -1,6 +1,6 @@
 <div align="center">
 
-![Logo](assets/images/logo.png)
+![Logo](app/assets/images/logo.png)
 
 
 #  Hệ Thống Báo Cháy Thông Minh - AI Fire & Smoke Detection
@@ -50,6 +50,9 @@ Dự án phát triển hệ thống báo cháy thông minh sử dụng YOLOv11 A
 9. [API Documentation](#api-documentation)
 10. [Troubleshooting](#troubleshooting)
 11. [Tài Liệu Kỹ Thuật](#tài-liệu-kỹ-thuật)
+12. [Quick Start](#quick-start-commands)
+
+**Tài liệu bổ sung:** [docs/ESP32_FLASK_SERVER.md](docs/ESP32_FLASK_SERVER.md)
 
 ---
 
@@ -147,29 +150,27 @@ HeThongBaoChay/
 │   │   └── models/              # Data models
 │   └── android/                 # Android configuration
 │
-├── data/                        # Training dataset (YOLO format)
-│   ├── train/images/            # Training images
-│   ├── train/labels/            # Training labels
-│   ├── valid/images/            # Validation images
-│   ├── valid/labels/            # Validation labels
-│   ├── test/images/             # Test images
-│   ├── test/labels/             # Test labels
-│   └── data.yaml                # Dataset configuration
+├── scripts/                     # Python scripts
+│   ├── esp32_flask_stream_server.py   # ESP32 stream + YOLO detection
+│   ├── test_camera_api.py             # Test kết nối ESP32-CAM
+│   ├── train_yolo_model.py            # Training YOLOv11
+│   └── upload_model_huggingface.py     # Upload model lên Hugging Face
 │
-├── training_results_*/          # Training outputs
-│   ├── weights/
-│   │   ├── best.pt              # Best model
-│   │   └── last.pt              # Last checkpoint
-│   ├── plots/                   # Training visualizations
-│   └── tensorboard/              # TensorBoard logs
+├── hardware/                    # Firmware phần cứng
+│   └── esp32/
+│       └── ESP32_CAMERA_CODE.ino      # ESP32-CAM firmware
+│
+├── docs/                        # Tài liệu bổ sung
+│   └── ESP32_FLASK_SERVER.md   # Hướng dẫn ESP32 Flask server
+│
+├── notebooks/                   # Jupyter notebooks
+│   └── train_yolo_colab_vscode.ipynb
+│
+├── models/                      # Model đã train (tùy chọn)
+├── data/                        # Training dataset (YOLO format)
 │
 ├── main.py                      # FastAPI backend server
-├── train_yolo_model.py          # Advanced training script
-├── quick_train.py               # Quick training script
-├── simple_train.py              # Simple training script
-├── check_data.py                # Data verification
 ├── requirements.txt             # Python dependencies
-├── ESP32_CAMERA_CODE.ino        # ESP32-CAM firmware
 └── README.md                    # File này
 ```
 
@@ -190,16 +191,16 @@ pip install -r requirements.txt
 ### Bước 2: Khởi Động Backend API
 
 ```bash
-cd e:\HeThongBaoChay
+# Từ thư mục gốc dự án (HeThongBaoChay)
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-
 ```
 Server sẽ chạy tại `http://localhost:8000`
 
 ### Bước 3: Cấu hình ESP32-CAM
-sửa IP ESP32 CAM của bạn.
+
+Cập nhật IP ESP32-CAM trong `scripts/test_camera_api.py` rồi chạy:
 ```bash
-py test_camera_api.py
+python scripts/test_camera_api.py
 ```
 
 ### Bước 4: Cấu Hình Flutter App
@@ -256,7 +257,7 @@ flutter run
 
 ### Bước 1: Upload Firmware
 
-1. Mở `ESP32_CAMERA_CODE.ino` trong Arduino IDE
+1. Mở `hardware/esp32/ESP32_CAMERA_CODE.ino` trong Arduino IDE
 2. Cài đặt ESP32 board support
 3. Cấu hình WiFi credentials:
    ```cpp
@@ -277,7 +278,7 @@ flutter run
 
 ### Bước 3: Cập Nhật IP trong Flutter App
 
-**File: `app/lib/services/esp32_streaming_service.dart`**
+**File: `app/lib/services/esp32_camera_service.dart`** (hoặc cấu hình IP trong scripts)
 ```dart
 String _esp32IP = '192.168.1.100'; // ← THAY ĐỔI IP TẠI ĐÂY
 ```
@@ -368,32 +369,11 @@ data/
     └── labels/         # Labels test
 ```
 
-### Bước 1: Kiểm Tra Dữ Liệu
+### Bước 1: Chọn Phương Pháp Training
 
+#### 🔬 Advanced Training (Khuyến nghị)
 ```bash
-python check_data.py
-```
-
-Script này sẽ:
--  Kiểm tra cấu trúc dữ liệu
--  Phân tích phân bố classes
--  Hiển thị ảnh mẫu với labels
--  Tạo biểu đồ thống kê
-
-### Bước 2: Chọn Phương Pháp Training
-
-#### 🏃‍♂️ Quick Training (Khuyến nghị cho người mới)
-```bash
-python quick_train.py
-```
--  Dễ sử dụng, setup tự động
--  Best practices được tích hợp sẵn
--  Batch size tự động tối ưu
--  Thời gian: 2-4 giờ
-
-#### 🔬 Advanced Training (Cho chuyên gia)
-```bash
-python train_yolo_model.py
+python scripts/train_yolo_model.py
 ```
 -  Hyperparameter optimization với Optuna
 -  Mixed precision training
@@ -401,13 +381,7 @@ python train_yolo_model.py
 -  Ensemble model support
 -  Thời gian: 4-8 giờ
 
-####  Simple Training (Cho việc học)
-```bash
-python simple_train.py
-```
-- Dành cho học tập
-- Code dễ hiểu
-- Thời gian: 1-2 giờ
+**Notebook:** Xem `notebooks/train_yolo_colab_vscode.ipynb` để train trên Colab/VSCode.
 
 ### Cấu Hình Training
 
@@ -560,7 +534,7 @@ const String API_BASE_URL = 'http://192.168.1.XXX:8000';
 
 **"Model not found"**
 - Kiểm tra file model tại: `training_results_*/advanced_fire_smoke_yolo11s/weights/best.pt`
-- Cập nhật `MODEL_PATH` trong `main.py`
+- Hoặc đặt biến môi trường: `set MODEL_PATH=đường_dẫn\best.pt` (Windows)
 
 ### Lỗi CUDA/GPU
 
@@ -600,8 +574,8 @@ python -c "import torch; print(torch.cuda.is_available())"
 - **State management**: Camera streaming state tracking
 
 #### Frontend (Flutter)
-- **Service layer**: `ESP32StreamingService`, `CameraDetectionService`
-- **Widget layer**: Reusable components (`StreamingView`, `UploadView`)
+- **Service layer**: `ESP32CameraService`, `CameraDetectionService`, `PredictionService`
+- **Widget layer**: Reusable components trong `app/lib/widgets/`
 - **Screen layer**: Clean main screens với separation of concerns
 
 ### Code Quality
@@ -670,26 +644,32 @@ MIT License - Xem file LICENSE để biết thêm chi tiết.
 
 ```bash
 # 1. Setup
-python install_requirements.py
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 
-# 2. Quick training (khuyến nghị)
-python quick_train.py
+# 2. Advanced training  
+python scripts/train_yolo_model.py
 
-# 3. Advanced training  
-python train_yolo_model.py
+# 3. Check results
+ls training_results_*/
 
-# 4. Check results
-ls -la training_results_*/
-
-# 5. View TensorBoard
+# 4. View TensorBoard
 tensorboard --logdir training_results_*/tensorboard
 
-# 6. Run backend
-python main.py
+# 5. Run backend
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-# 7. Run Flutter app
+# 6. Run Flutter app
 cd app
+flutter pub get
 flutter run
+
+# 7. Test ESP32 (cập nhật IP trong script trước)
+python scripts/test_camera_api.py
+
+# 8. ESP32 Flask server (cho Flutter app stream)
+python scripts/esp32_flask_stream_server.py
 ```
 
 ---

@@ -5,7 +5,6 @@ import 'firebase_options.dart';
 import 'services/notification_service.dart';
 import 'services/alert_service.dart';
 import 'screens/wrapper.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,10 +19,9 @@ Future<void> main() async {
   ]);
 
   // Chạy app trước, khởi tạo services sau (không block UI)
-  print('🚀 Starting FireAlertApp...');
+  debugPrint(' Starting FireAlertApp...');
   runApp(const FireAlertApp());
-  print('✅ FireAlertApp started');
-
+  debugPrint(' FireAlertApp started');
   // Initialize services sau khi app đã chạy (không block)
   _initializeServicesAsync();
 }
@@ -42,9 +40,6 @@ class FireAlertApp extends StatelessWidget {
           seedColor: Color(0xFF667eea),
           brightness: Brightness.light,
         ),
-        // Tạm thời tắt GoogleFonts để debug màn trắng
-        // textTheme: _getTextTheme(),
-        // fontFamily: _getFontFamily(),
         cardTheme: CardTheme(
           elevation: 4,
           shape: RoundedRectangleBorder(
@@ -80,42 +75,6 @@ class FireAlertApp extends StatelessWidget {
       },
     );
   }
-  
-  // Helper để load font an toàn
-  static TextTheme _getTextTheme() {
-    try {
-      return GoogleFonts.interTextTheme();
-    } catch (e) {
-      print(' Error loading GoogleFonts, using default: $e');
-      return Typography.material2021().englishLike;
-    }
-  }
-  
-  static String? _getFontFamily() {
-    try {
-      return GoogleFonts.inter().fontFamily;
-    } catch (e) {
-      print(' Error loading GoogleFonts fontFamily, using default: $e');
-      return null;
-    }
-  }
-  
-  static TextStyle _getAppBarTextStyle() {
-    try {
-      return GoogleFonts.poppins(
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
-        color: Colors.white,
-      );
-    } catch (e) {
-      print(' Error loading GoogleFonts.poppins, using default: $e');
-      return TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
-        color: Colors.white,
-      );
-    }
-  }
 }
 
 // Initialize services async để không block UI
@@ -128,27 +87,27 @@ Future<void> _initializeServicesAsync() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    print(' Firebase initialized successfully');
+    debugPrint(' Firebase initialized successfully');
   } catch (e) {
-    print(' Firebase initialization error: $e');
-    print(' App will continue without Firebase features');
+    debugPrint(' Firebase initialization error: $e');
+    debugPrint(' App will continue without Firebase features');
   }
 
   // Initialize notification service (có thể hoạt động không cần Firebase)
   try {
     await NotificationService().init();
-    print(' Notification service initialized');
+    debugPrint(' Notification service initialized');
   } catch (e) {
-    print(' Notification service init error: $e');
-    print(' App will continue without notifications');
+    debugPrint(' Notification service init error: $e');
+    debugPrint(' App will continue without notifications');
   }
 
   // Register FCM token với backend (có error handling riêng trong service)
   try {
     await AlertService().registerFCMToken();
-    print(' FCM token registration attempted');
+    debugPrint(' FCM token registration attempted');
   } catch (e) {
-    print(' FCM token registration error: $e');
+    debugPrint(' FCM token registration error: $e');
   }
 
   // Auto-start polling để nhận alerts từ ESP32 (không block)
@@ -156,9 +115,9 @@ Future<void> _initializeServicesAsync() async {
   Future.delayed(Duration(seconds: 2), () {
     try {
       AlertService().startLiveAlertPolling();
-      print(' Alert polling started automatically');
+      debugPrint(' Alert polling started automatically');
     } catch (e) {
-      print('Alert polling start error: $e');
+      debugPrint('Alert polling start error: $e');
     }
   });
 }
