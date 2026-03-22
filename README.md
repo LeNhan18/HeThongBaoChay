@@ -150,6 +150,19 @@ HeThongBaoChay/
 │   │   └── models/              # Data models
 │   └── android/                 # Android configuration
 │
+├── routers/                     # FastAPI API routers
+│   ├── root.py                  # /, /health/, /test/, /predictions/history
+│   ├── images.py                # /predict/, /predict_json/
+│   ├── video.py                 # /analyze_video/
+│   ├── camera.py                # /camera/start/, /stream/, /stop/
+│   ├── esp32.py                 # /esp32/capture, /esp32/capture_with_boxes
+│   └── mobile.py                # /mobile/camera/detect, alerts, FCM...
+│
+├── services/                    # Backend services
+│   ├── detection.py             # YOLO detection, plot, filter
+│   ├── fire_tracker.py          # Fire duration tracking, ESP32 location
+│   └── notifications.py        # FCM push notifications
+│
 ├── scripts/                     # Python scripts
 │   ├── esp32_flask_stream_server.py   # ESP32 stream + YOLO detection
 │   ├── test_camera_api.py             # Test kết nối ESP32-CAM
@@ -161,17 +174,20 @@ HeThongBaoChay/
 │       └── ESP32_CAMERA_CODE.ino      # ESP32-CAM firmware
 │
 ├── docs/                        # Tài liệu bổ sung
-│   └── ESP32_FLASK_SERVER.md   # Hướng dẫn ESP32 Flask server
+│   └── ESP32_FLASK_SERVER.md
 │
 ├── notebooks/                   # Jupyter notebooks
 │   └── train_yolo_colab_vscode.ipynb
 │
 ├── models/                      # Model đã train (tùy chọn)
 ├── data/                        # Training dataset (YOLO format)
+├── assets/                      # Hình ảnh cho README
 │
-├── main.py                      # FastAPI backend server
-├── requirements.txt             # Python dependencies
-└── README.md                    # File này
+├── main.py                      # FastAPI app - mount routers
+├── config.py                    # Cấu hình, constants
+├── api_state.py                 # Global state (model, camera, alerts)
+├── requirements.txt
+└── README.md
 ```
 
 ---
