@@ -4,8 +4,6 @@ import 'package:video_player/video_player.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/foundation.dart';
-import 'dart:io' show Platform;
-import 'dart:typed_data';
 import '../services/prediction_service.dart';
 import '../services/notification_service.dart';
 import '../utils/platform_utils.dart' as platform_utils;
