@@ -52,6 +52,9 @@ Dự án xây dựng hệ thống cảnh báo cháy thông minh với mục tiê
 
 ![Kiến Trúc Hệ Thống](assets/images/z7354004843966_028e63c6bdfbd3e444d974b5a8ac2b02.jpg)
 
+
+*Sơ đồ kiến trúc hệ thống báo cháy thông minnh*
+
 </div>
 
 Luồng dữ liệu chính:
