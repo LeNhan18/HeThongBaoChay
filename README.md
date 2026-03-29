@@ -23,11 +23,13 @@ Nền tảng phát hiện lửa và khói theo thời gian thực bằng YOLO, t
 5. [Yêu Cầu Môi Trường](#yêu-cầu-môi-trường)
 6. [Hướng Dẫn Cài Đặt Nhanh](#hướng-dẫn-cài-đặt-nhanh)
 7. [Vận Hành Hệ Thống](#vận-hành-hệ-thống)
-8. [Đánh Giá Mô Hình](#đánh-giá-mô-hình)
-9. [API Tổng Quan](#api-tổng-quan)
-10. [ESP32-CAM và Firebase](#esp32-cam-và-firebase)
-11. [Troubleshooting](#troubleshooting)
-12. [Tài Liệu Liên Quan](#tài-liệu-liên-quan)
+8. [Thông Số Kỹ Thuật](#thông-số-kỹ-thuật)
+9. [Dữ Liệu và Xử Lý](#dữ-liệu-và-xử-lý)
+10. [Đánh Giá Mô Hình](#đánh-giá-mô-hình)
+11. [API Tổng Quan](#api-tổng-quan)
+12. [ESP32-CAM và Firebase](#esp32-cam-và-firebase)
+13. [Troubleshooting](#troubleshooting)
+14. [Tài Liệu Liên Quan](#tài-liệu-liên-quan)
 
 ## Giới Thiệu
 
@@ -144,6 +146,77 @@ flutter run
 python scripts/test_camera_api.py
 ```
 
+## Thông Số Kỹ Thuật
+
+### Backend (FastAPI)
+
+| Thông số | Giá trị / Ghi chú |
+|----------|-------------------|
+| Phiên bản API | `2.0` (xem `config.py`) |
+| Model mặc định | `training_results_*/advanced_fire_smoke_yolo11s/weights/best.pt` |
+| Ghi đè đường dẫn model | Biến môi trường `MODEL_PATH` |
+| Ngưỡng confidence mặc định | `0.45` (query param trên các endpoint inference) |
+| Lớp đối tượng | `fire`, `smoke` (YOLO) |
+| Giới hạn upload ảnh | 10 MB |
+| Giới hạn upload video | 100 MB |
+| Camera stream (PC) | 640×480 @ 30 FPS (cấu hình OpenCV) |
+| Theo dõi cháy liên tục | Sau **30 giây** có lửa/khói → bật cờ vị trí (`FIRE_DURATION_THRESHOLD`) |
+| Tọa độ ESP32 (tùy chọn) | `ESP32_LATITUDE`, `ESP32_LONGITUDE` hoặc `ESP32_<IP>_LATITUDE` / `LONGITUDE` |
+
+### Flutter / client
+
+| Thông số | Ghi chú |
+|----------|---------|
+| Cấu hình API | `app/lib/config/api_config.dart` (host theo nền tảng), `constants.dart` (URL cố định một số luồng) |
+| Package | Xem `app/pubspec.yaml` |
+
+### Huấn luyện (tham khảo `scripts/train_yolo_model.py`)
+
+| Thông số | Ghi chú |
+|----------|---------|
+| Framework | Ultralytics YOLOv11 |
+| Cấu hình dataset | `data/data.yaml` (đường dẫn tương đối từ thư mục gốc dự án) |
+| Kết quả | Thư mục `training_results_YYYYMMDD_HHMMSS/` (thường không commit Git) |
+
+## Dữ Liệu và Xử Lý
+
+### Cấu trúc thư mục dataset (YOLO)
+
+```text
+data/
+├── data.yaml              # train/val/test paths, số lớp, tên lớp
+├── train/
+│   ├── images/            # ảnh .jpg / .png
+│   └── labels/            # mỗi ảnh một file .txt cùng tên (YOLO: class x_center y_center w h, chuẩn hóa 0–1)
+├── valid/  (hoặc val/)
+│   ├── images/
+│   └── labels/
+└── test/   (tùy chọn)
+│   ├── images/
+│   └── labels/
+```
+
+- **data.yaml** khai báo `path`, `train`, `val`, `test`, `nc` (số lớp), `names` (ví dụ `fire`, `smoke`).
+- **Nhãn**: một dòng một object; class id bắt đầu từ 0; tọa độ trung tâm và kích thước bbox theo tỷ lệ so với chiều rộng/cao ảnh.
+
+### Quy trình xử lý khi huấn luyện
+
+1. Chuẩn bị ảnh và nhãn đúng cấu trúc trên.
+2. Chạy `python scripts/train_yolo_model.py` từ thư mục gốc (script tự `chdir` về project root).
+3. Ultralytics áp dụng augmentation và pipeline mặc định (flip, scale, v.v. tùy phiên bản).
+4. Theo dõi bằng TensorBoard / biểu đồ trong `report_images1/` hoặc thư mục run.
+
+### Xử lý khi suy luận (API)
+
+| Bước | Mô tả |
+|------|--------|
+| Ảnh upload | Giải mã bằng OpenCV; suy luận YOLO; tùy chọn lọc false positive (vùng nhỏ/quá lớn, góc trên ảnh, confidence thấp) trong `services/detection.py`. |
+| Video | Đọc từng frame; resize + pad về 640×640; suy luận; vẽ bbox; ghép lại video output. |
+| ESP32 | GET `http://<esp32_ip>/capture` → bytes JPEG → giống pipeline ảnh. |
+| Stream PC | MJPEG từ webcam qua OpenCV + cùng hàm vẽ nhãn tiếng Việt. |
+
+**Lưu ý:** Endpoint `GET /predictions/history` hiện trả danh sách rỗng (stub); có thể mở rộng lưu lịch sử nếu cần.
+
 ## Vận Hành Hệ Thống
 
 ### Nhánh sử dụng trên mobile
@@ -218,24 +291,45 @@ Nhận xét nhanh:
 
 ## API Tổng Quan
 
-Base URL: http://localhost:8000
+Base URL: `http://localhost:8000` (Swagger: `/docs`)
 
-Một số endpoint chính:
+### Ảnh / video / camera máy tính
 
-- GET / : Thông tin API
-- GET /health/ : Kiểm tra trạng thái server và model
-- POST /predict/ : Dự đoán ảnh, trả ảnh đã annotate
-- POST /predict_json/ : Dự đoán ảnh, trả JSON
-- POST /analyze_video/ : Phân tích video
-- POST /camera/start/ : Khởi tạo camera session
-- GET /camera/stream/ : Stream MJPEG
-- POST /camera/stop/ : Dừng camera
-- POST /mobile/camera/detect : API cho mobile camera
+| Phương thức | Đường dẫn | Mô tả |
+|-------------|-----------|--------|
+| GET | `/` | Thông tin API và danh sách endpoint |
+| GET | `/health/` | Trạng thái server và model |
+| GET | `/test/` | Kiểm tra kết nối |
+| GET | `/predictions/history` | Lịch sử prediction (stub, có thể rỗng) |
+| POST | `/predict/` | Upload ảnh → trả **JPEG** đã vẽ bbox |
+| POST | `/predict_json/` | Upload ảnh → trả **JSON** detection |
+| POST | `/analyze_video/` | Upload video → trả video đã annotate |
+| POST | `/camera/start/` | Bật session camera |
+| GET | `/camera/stream/` | MJPEG stream (gọi sau `/camera/start/`) |
+| POST | `/camera/stop/` | Tắt camera |
 
-Ví dụ gọi API:
+### Mobile
+
+| Phương thức | Đường dẫn | Mô tả |
+|-------------|-----------|--------|
+| POST | `/mobile/camera/detect` | Frame → JSON |
+| POST | `/mobile/camera/detect_with_image` | Frame → JPEG có bbox |
+| POST | `/mobile/register_fcm_token` | Đăng ký FCM token |
+| POST | `/mobile/send_alert` | Nhận cảnh báo từ script/ESP32, đẩy FCM + hàng đợi alert |
+| GET | `/mobile/get_alerts` | Lấy danh sách alert (`unread_only` tùy chọn) |
+| POST | `/mobile/mark_alert_read` | Đánh dấu đã đọc |
+
+### ESP32 (qua backend)
+
+| Phương thức | Đường dẫn | Mô tả |
+|-------------|-----------|--------|
+| POST | `/esp32/capture` | Query `esp32_ip`, `confidence` → JSON |
+| POST | `/esp32/capture_with_boxes` | Query `esp32_ip`, `confidence` → JPEG |
+
+Ví dụ:
 
 ```bash
-curl -X POST -F "file=@image.jpg" http://localhost:8000/predict_json/
+curl -X POST -F "file=@image.jpg" "http://localhost:8000/predict_json/?confidence=0.45"
 ```
 
 ## ESP32-CAM và Firebase
